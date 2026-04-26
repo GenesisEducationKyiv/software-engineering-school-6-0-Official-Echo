@@ -6,7 +6,7 @@
 	"scripts": {
 		"start": "node src/index.js",
 		"dev": "nodemon src/index.js",
-		"test": "jest --coverage --forceExit",
+		"test": "jest --coverage",
 		"lint": "eslint src tests --ext .js",
 		"grpc": "node src/grpc/server.js"
 	},

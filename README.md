@@ -13,7 +13,7 @@ A Node.js service that lets users subscribe to email notifications for new GitHu
 ## Stack
 
 - **Node.js 20** / **pnpm 9**
-- **Express 4** — HTTP API
+- **Express 5** — HTTP API
 - **better-sqlite3** — SQLite database, auto-migrated on startup
 - **node-cron** — release scanner scheduler
 - **Nodemailer** — email delivery

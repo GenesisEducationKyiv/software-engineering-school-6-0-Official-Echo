@@ -1,16 +1,22 @@
-const client = require("prom-client");
+import {
+	Registry,
+	collectDefaultMetrics,
+	Counter,
+	Histogram,
+	Gauge,
+} from "prom-client";
 
-const register = new client.Registry();
-client.collectDefaultMetrics({ register });
+const register = new Registry();
+collectDefaultMetrics({ register });
 
-const httpRequestsTotal = new client.Counter({
+const httpRequestsTotal = new Counter({
 	name: "http_requests_total",
 	help: "Total number of HTTP requests",
 	labelNames: ["method", "route", "status"],
 	registers: [register],
 });
 
-const httpRequestDuration = new client.Histogram({
+const httpRequestDuration = new Histogram({
 	name: "http_request_duration_seconds",
 	help: "HTTP request duration in seconds",
 	labelNames: ["method", "route", "status"],
@@ -18,25 +24,25 @@ const httpRequestDuration = new client.Histogram({
 	registers: [register],
 });
 
-const subscriptionsTotal = new client.Gauge({
+const subscriptionsTotal = new Gauge({
 	name: "subscriptions_total",
 	help: "Total number of subscriptions in DB",
 	registers: [register],
 });
 
-const confirmedSubscriptionsTotal = new client.Gauge({
+const confirmedSubscriptionsTotal = new Gauge({
 	name: "confirmed_subscriptions_total",
 	help: "Number of confirmed subscriptions",
 	registers: [register],
 });
 
-const notificationsSentTotal = new client.Counter({
+const notificationsSentTotal = new Counter({
 	name: "notifications_sent_total",
 	help: "Total release notification emails sent",
 	registers: [register],
 });
 
-const scannerRunsTotal = new client.Counter({
+const scannerRunsTotal = new Counter({
 	name: "scanner_runs_total",
 	help: "Total number of scanner cron runs",
 	registers: [register],
@@ -56,7 +62,7 @@ function metricsMiddleware(req, res, next) {
 	next();
 }
 
-module.exports = {
+export {
 	register,
 	metricsMiddleware,
 	subscriptionsTotal,

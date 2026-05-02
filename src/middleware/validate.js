@@ -24,4 +24,4 @@ function validateEmail(req, res, next) {
 	next();
 }
 
-module.exports = { validate, validateEmail };
+export { validate, validateEmail };

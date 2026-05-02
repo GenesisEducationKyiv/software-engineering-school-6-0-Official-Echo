@@ -1,16 +1,26 @@
-const path = require("path");
-const grpc = require("@grpc/grpc-js");
-const protoLoader = require("@grpc/proto-loader");
-const { v4: uuidv4 } = require("uuid");
-const { getDb } = require("../db/database").default;
-const { isValidRepoFormat, repoExists } = require("../services/github");
-const { sendConfirmationEmail } = require("../services/notifier");
-const SQL = require("../db/queries/subscription.js");
+import { join } from "path";
+import {
+	loadPackageDefinition,
+	status,
+	Server,
+	ServerCredentials,
+} from "@grpc/grpc-js";
+import { loadSync } from "@grpc/proto-loader";
+import { v4 as uuidv4 } from "uuid";
+import { getDb } from "../db/database.js";
+import { isValidRepoFormat, repoExists } from "../services/github.js";
+import { sendConfirmationEmail } from "../services/notifier.js";
+import {
+	INSERT_SUBSCRIPTION,
+	CONFIRM_SUBSCRIPTION_BY_TOKEN,
+	DELETE_SUBSCRIPTION_BY_TOKEN,
+	GET_SUBSCRIPTIONS_BY_EMAIL,
+} from "../db/queries/subscription.js";
 
-const PROTO_PATH = path.join(__dirname, "../../proto/notifier.proto");
+const PROTO_PATH = join(import.meta.dirname, "../../proto/notifier.proto");
 const GRPC_PORT = process.env.GRPC_PORT || 50051;
 
-const packageDef = protoLoader.loadSync(PROTO_PATH, {
+const packageDef = loadSync(PROTO_PATH, {
 	keepCase: true,
 	longs: String,
 	enums: String,
@@ -18,26 +28,26 @@ const packageDef = protoLoader.loadSync(PROTO_PATH, {
 	oneofs: true,
 });
 
-const proto = grpc.loadPackageDefinition(packageDef).notifier;
+const proto = loadPackageDefinition(packageDef).notifier;
 
 async function Subscribe(call, callback) {
 	const { email, repo } = call.request;
 
 	if (!email || !repo) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "email and repo are required",
 		});
 	}
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "Invalid email address",
 		});
 	}
 	if (!isValidRepoFormat(repo)) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "Invalid repo format. Use owner/repo",
 		});
 	}
@@ -46,19 +56,19 @@ async function Subscribe(call, callback) {
 		const exists = await repoExists(repo);
 		if (!exists) {
 			return callback({
-				code: grpc.status.NOT_FOUND,
+				code: status.NOT_FOUND,
 				message: `Repository "${repo}" not found`,
 			});
 		}
 	} catch (err) {
 		if (err.status === 429) {
 			return callback({
-				code: grpc.status.RESOURCE_EXHAUSTED,
+				code: status.RESOURCE_EXHAUSTED,
 				message: "GitHub rate limit exceeded",
 			});
 		}
 		return callback({
-			code: grpc.status.INTERNAL,
+			code: status.INTERNAL,
 			message: "Failed to verify repository",
 		});
 	}
@@ -68,7 +78,7 @@ async function Subscribe(call, callback) {
 	const unsubscribeToken = uuidv4();
 
 	try {
-		db.prepare(SQL.INSERT_SUBSCRIPTION).run(
+		db.prepare(INSERT_SUBSCRIPTION).run(
 			email,
 			repo,
 			confirmToken,
@@ -77,11 +87,11 @@ async function Subscribe(call, callback) {
 	} catch (err) {
 		if (err.message.includes("UNIQUE constraint failed")) {
 			return callback({
-				code: grpc.status.ALREADY_EXISTS,
+				code: status.ALREADY_EXISTS,
 				message: "Already subscribed",
 			});
 		}
-		return callback({ code: grpc.status.INTERNAL, message: "Database error" });
+		return callback({ code: status.INTERNAL, message: "Database error" });
 	}
 
 	try {
@@ -99,16 +109,16 @@ function Confirm(call, callback) {
 	const { token } = call.request;
 	if (!token) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "Invalid token",
 		});
 	}
 
 	const db = getDb();
-	const sub = db.prepare(SQL.CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
+	const sub = db.prepare(CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
 
 	if (!sub) {
-		return callback({ code: grpc.status.NOT_FOUND, message: "Token not found" });
+		return callback({ code: status.NOT_FOUND, message: "Token not found" });
 	}
 	if (sub.confirmed) return callback(null, { message: "Already confirmed" });
 
@@ -122,16 +132,16 @@ function Unsubscribe(call, callback) {
 	const { token } = call.request;
 	if (!token) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "Invalid token",
 		});
 	}
 
 	const db = getDb();
-	const result = db.prepare(SQL.DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
+	const result = db.prepare(DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
 
 	if (result.changes === 0) {
-		return callback({ code: grpc.status.NOT_FOUND, message: "Token not found" });
+		return callback({ code: status.NOT_FOUND, message: "Token not found" });
 	}
 	callback(null, { message: "Unsubscribed successfully" });
 }
@@ -140,13 +150,13 @@ function GetSubscriptions(call, callback) {
 	const { email } = call.request;
 	if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 		return callback({
-			code: grpc.status.INVALID_ARGUMENT,
+			code: status.INVALID_ARGUMENT,
 			message: "Invalid email",
 		});
 	}
 
 	const db = getDb();
-	const rows = db.prepare(SQL.GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
+	const rows = db.prepare(GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
 
 	callback(null, {
 		subscriptions: rows.map((r) => ({
@@ -158,8 +168,8 @@ function GetSubscriptions(call, callback) {
 	});
 }
 
-function startGrpcServer() {
-	const server = new grpc.Server();
+export function startGrpcServer() {
+	const server = new Server();
 	server.addService(proto.SubscriptionService.service, {
 		Subscribe,
 		Confirm,
@@ -169,7 +179,7 @@ function startGrpcServer() {
 
 	server.bindAsync(
 		`0.0.0.0:${GRPC_PORT}`,
-		grpc.ServerCredentials.createInsecure(),
+		ServerCredentials.createInsecure(),
 		(err, port) => {
 			if (err) {
 				console.error("[gRPC] Failed to start:", err.message);
@@ -181,5 +191,3 @@ function startGrpcServer() {
 
 	return server;
 }
-
-module.exports = { startGrpcServer };

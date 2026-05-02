@@ -17,4 +17,4 @@ function apiKeyAuth(req, res, next) {
 	next();
 }
 
-module.exports = { apiKeyAuth };
+export default { apiKeyAuth };

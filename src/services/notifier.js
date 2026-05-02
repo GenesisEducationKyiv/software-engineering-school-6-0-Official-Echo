@@ -1,7 +1,7 @@
-const nodemailer = require("nodemailer");
+import { createTransport as _createTransport } from "nodemailer";
 
 function createTransport() {
-	return nodemailer.createTransport({
+	return _createTransport({
 		host: process.env.SMTP_HOST || "smtp.ethereal.email",
 		port: parseInt(process.env.SMTP_PORT || "587"),
 		secure: process.env.SMTP_SECURE === "true",
@@ -59,4 +59,4 @@ async function sendReleaseNotification({ email, repo, tag, unsubscribeToken }) {
 	});
 }
 
-module.exports = { sendConfirmationEmail, sendReleaseNotification };
+export { sendConfirmationEmail, sendReleaseNotification };

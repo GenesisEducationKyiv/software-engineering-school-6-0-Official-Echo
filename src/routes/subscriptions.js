@@ -1,12 +1,17 @@
-const express = require("express");
-const { v4: uuidv4 } = require("uuid");
-const { getDb } = require("../db/database").default;
-const { isValidRepoFormat, repoExists } = require("../services/github");
-const { sendConfirmationEmail } = require("../services/notifier");
-const { validate, validateEmail } = require("../middleware/validate");
-const SQL = require("../db/queries/subscription.js");
+import { Router } from "express";
+import { v4 as uuidv4 } from "uuid";
+import { getDb } from "../db/database.js";
+import { isValidRepoFormat, repoExists } from "../services/github.js";
+import { sendConfirmationEmail } from "../services/notifier.js";
+import { validate, validateEmail } from "../middleware/validate.js";
+import {
+	INSERT_SUBSCRIPTION,
+	CONFIRM_SUBSCRIPTION_BY_TOKEN,
+	DELETE_SUBSCRIPTION_BY_TOKEN,
+	GET_SUBSCRIPTIONS_BY_EMAIL,
+} from "../db/queries/subscription.js";
 
-const router = express.Router();
+const router = Router();
 
 /**
  * POST /api/subscribe
@@ -49,7 +54,7 @@ router.post(
 		const unsubscribeToken = uuidv4();
 
 		try {
-			db.prepare(SQL.INSERT_SUBSCRIPTION).run(
+			db.prepare(INSERT_SUBSCRIPTION).run(
 				email,
 				repo,
 				confirmToken,
@@ -91,7 +96,7 @@ router.get("/confirm/:token", (req, res) => {
 	}
 
 	const db = getDb();
-	const sub = db.prepare(SQL.CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
+	const sub = db.prepare(CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
 
 	if (!sub) {
 		return res.status(404).json({ error: "Token not found" });
@@ -120,7 +125,7 @@ router.get("/unsubscribe/:token", (req, res) => {
 	}
 
 	const db = getDb();
-	const result = db.prepare(SQL.DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
+	const result = db.prepare(DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
 
 	if (result.changes === 0) {
 		return res.status(404).json({ error: "Token not found" });
@@ -141,7 +146,7 @@ router.get("/subscriptions", (req, res) => {
 	}
 
 	const db = getDb();
-	const rows = db.prepare(SQL.GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
+	const rows = db.prepare(GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
 
 	return res.status(200).json(
 		rows.map((r) => ({
@@ -153,4 +158,4 @@ router.get("/subscriptions", (req, res) => {
 	);
 });
 
-module.exports = router;
+export default router;

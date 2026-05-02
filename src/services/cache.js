@@ -1,4 +1,4 @@
-const Redis = require("ioredis");
+import Redis from "ioredis";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const TTL = 60 * 10;
@@ -66,4 +66,4 @@ async function cacheDel(key) {
 	}
 }
 
-module.exports = { getRedis, cacheGet, cacheSet, cacheDel };
+export { getRedis, cacheGet, cacheSet, cacheDel };

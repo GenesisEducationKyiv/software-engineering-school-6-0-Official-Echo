@@ -1,5 +1,4 @@
-module.exports = {
-	CREATE_TABLE: `
+export const CREATE_TABLE = `
     CREATE TABLE IF NOT EXISTS subscriptions (
       id                INTEGER PRIMARY KEY AUTOINCREMENT,
       email             TEXT    NOT NULL,
@@ -11,5 +10,4 @@ module.exports = {
       created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
       UNIQUE(email, repo)
     );
-  `,
-};
+  `;

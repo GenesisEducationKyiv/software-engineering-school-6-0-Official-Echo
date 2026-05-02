@@ -1,5 +1,5 @@
-const axios = require("axios");
-const { cacheGet, cacheSet } = require("./cache");
+import axios from "axios";
+import { cacheGet, cacheSet } from "./cache.js";
 
 const githubClient = axios.create({
 	baseURL: "https://api.github.com",
@@ -71,4 +71,4 @@ async function getLatestRelease(repo) {
 	}
 }
 
-module.exports = { isValidRepoFormat, repoExists, getLatestRelease };
+export { isValidRepoFormat, repoExists, getLatestRelease };

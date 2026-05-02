@@ -1,9 +1,13 @@
-const cron = require("node-cron");
-const { getDb } = require("../db/database").default;
-const { getLatestRelease } = require("./github");
-const { sendReleaseNotification } = require("./notifier");
-const { notificationsSentTotal, scannerRunsTotal } = require("./metrics");
-const SQL = require("../db/queries/repo.js");
+import { schedule } from "node-cron";
+import { getDb } from "../db/database.js";
+import { getLatestRelease } from "./github.js";
+import { sendReleaseNotification } from "./notifier.js";
+import { notificationsSentTotal, scannerRunsTotal } from "./metrics.js";
+import {
+	GET_CONFIRMED_REPOS,
+	GET_CONFIRMED_SUBSCRIBERS_BY_REPO,
+	UPDATE_SUB_LAST_SEEN_TAG_BY_ID,
+} from "../db/queries/repo.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
 
@@ -11,7 +15,7 @@ async function scanAllRepos() {
 	scannerRunsTotal.inc();
 	const db = getDb();
 
-	const repos = db.prepare(SQL.GET_CONFIRMED_REPOS).all();
+	const repos = db.prepare(GET_CONFIRMED_REPOS).all();
 
 	console.log(`[Scanner] Checking ${repos.length} repo(s)...`);
 
@@ -36,11 +40,11 @@ async function checkRepo(db, repo) {
 	const latestTag = await getLatestRelease(repo);
 	if (!latestTag) return;
 
-	const subscribers = db.prepare(SQL.GET_CONFIRMED_SUBSCRIBERS_BY_REPO).all(repo);
+	const subscribers = db.prepare(GET_CONFIRMED_SUBSCRIBERS_BY_REPO).all(repo);
 
 	for (const sub of subscribers) {
 		if (sub.last_seen_tag === null) {
-			db.prepare(SQL.UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
+			db.prepare(UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
 			console.log(
 				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`
 			);
@@ -53,7 +57,7 @@ async function checkRepo(db, repo) {
 		}
 
 		console.log(`[Scanner] ${repo} — ${sub.email}: NEW release ${latestTag}`);
-		db.prepare(SQL.UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
+		db.prepare(UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
 
 		try {
 			await sendReleaseNotification({
@@ -72,8 +76,8 @@ async function checkRepo(db, repo) {
 
 function startScanner() {
 	console.log(`[Scanner] Starting, schedule: ${CRON_SCHEDULE}`);
-	cron.schedule(CRON_SCHEDULE, scanAllRepos);
+	schedule(CRON_SCHEDULE, scanAllRepos);
 	scanAllRepos().catch(console.error);
 }
 
-module.exports = { startScanner, scanAllRepos, checkRepo };
+export { startScanner, scanAllRepos, checkRepo };

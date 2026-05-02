@@ -6,6 +6,7 @@
 
 **1. API matches Swagger contract**
 All endpoints, HTTP status codes, and response shapes match `swagger.yaml` exactly:
+
 - `POST /api/subscribe` → 200 / 400 / 404 / 409
 - `GET /api/confirm/:token` → 200 / 400 / 404
 - `GET /api/unsubscribe/:token` → 200 / 400 / 404
@@ -34,6 +35,7 @@ Express 4. No Nest.js or other high-level frameworks.
 
 **9. Unit tests**
 35 tests across 5 suites:
+
 - `github.test.js` — format validation, repoExists, getLatestRelease (200/404/429)
 - `scanner.test.js` — first check, unchanged tag, new release, partial email failure
 - `validate.test.js` — required fields, email format
@@ -58,6 +60,7 @@ Full alternative to REST. Defined in `proto/notifier.proto`, implemented in `src
 
 **Prometheus metrics**\
 `GET /metrics` (no auth — intended for infra scraping). Provided by `prom-client`:
+
 - `http_requests_total` — by method / route / status
 - `http_request_duration_seconds` — histogram with buckets
 - `subscriptions_total`, `confirmed_subscriptions_total`

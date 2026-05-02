@@ -22,7 +22,7 @@ async function scanAllRepos() {
 		} catch (err) {
 			if (err.status === 429) {
 				console.warn(
-					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`,
+					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`
 				);
 				break;
 			}
@@ -41,16 +41,17 @@ async function checkRepo(db, repo) {
 		.prepare(
 			`SELECT id, email, unsubscribe_token, last_seen_tag
        FROM subscriptions
-       WHERE repo = ? AND confirmed = 1`,
+       WHERE repo = ? AND confirmed = 1`
 		)
 		.all(repo);
 
 	for (const sub of subscribers) {
 		if (sub.last_seen_tag === null) {
-			db.prepare(`UPDATE subscriptions SET last_seen_tag = ? WHERE id = ?`)
-				.run(latestTag, sub.id);
+			db.prepare(
+				`UPDATE subscriptions SET last_seen_tag = ? WHERE id = ?`
+			).run(latestTag, sub.id);
 			console.log(
-				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`,
+				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`
 			);
 			continue;
 		}
@@ -63,7 +64,7 @@ async function checkRepo(db, repo) {
 		console.log(`[Scanner] ${repo} — ${sub.email}: NEW release ${latestTag}`);
 		db.prepare(`UPDATE subscriptions SET last_seen_tag = ? WHERE id = ?`).run(
 			latestTag,
-			sub.id,
+			sub.id
 		);
 
 		try {

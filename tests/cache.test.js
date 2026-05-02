@@ -57,9 +57,9 @@ describe("cache service (graceful degradation)", () => {
 		jest.mock("ioredis", () => {
 			return jest.fn(() => ({
 				on: jest.fn().mockReturnThis(),
-				connect: jest.fn().mockRejectedValue(
-					new Error("Connection refused"),
-				),
+				connect: jest
+					.fn()
+					.mockRejectedValue(new Error("Connection refused")),
 				get: jest.fn().mockRejectedValue(new Error("Connection refused")),
 				set: jest.fn().mockRejectedValue(new Error("Connection refused")),
 				del: jest.fn().mockRejectedValue(new Error("Connection refused")),

@@ -23,12 +23,16 @@ app.get("/metrics", async (_req, res) => {
 	res.end(await register.metrics());
 });
 
-app.use("/api", (req, res, next) => {
-	const isPublicTokenRoute = req.path.startsWith("/confirm/") ||
-		req.path.startsWith("/unsubscribe/");
-	if (isPublicTokenRoute) return next();
-	return apiKeyAuth(req, res, next);
-}, subscriptionsRouter);
+app.use(
+	"/api",
+	(req, res, next) => {
+		const isPublicTokenRoute =
+			req.path.startsWith("/confirm/") || req.path.startsWith("/unsubscribe/");
+		if (isPublicTokenRoute) return next();
+		return apiKeyAuth(req, res, next);
+	},
+	subscriptionsRouter
+);
 
 app.use(errorHandler);
 

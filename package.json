@@ -8,6 +8,8 @@
 		"dev": "nodemon src/index.js",
 		"test": "jest --coverage",
 		"lint": "eslint src tests --ext .js",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
 		"grpc": "node src/grpc/server.js"
 	},
 	"dependencies": {
@@ -27,7 +29,8 @@
 		"eslint": "^10.3.0",
 		"globals": "^17.6.0",
 		"jest": "^30.3.0",
-		"nodemon": "^3.1.14"
+		"nodemon": "^3.1.14",
+		"prettier": "^3.8.3"
 	},
 	"jest": {
 		"testEnvironment": "node",

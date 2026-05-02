@@ -48,10 +48,12 @@ router.post(
 		const unsubscribeToken = uuidv4();
 
 		try {
-			db.prepare(`
+			db.prepare(
+				`
         INSERT INTO subscriptions (email, repo, confirm_token, unsubscribe_token)
         VALUES (?, ?, ?, ?)
-      `).run(email, repo, confirmToken, unsubscribeToken);
+      `
+			).run(email, repo, confirmToken, unsubscribeToken);
 		} catch (err) {
 			if (err.message.includes("UNIQUE constraint failed")) {
 				return res.status(409).json({
@@ -66,14 +68,14 @@ router.post(
 		} catch (err) {
 			console.error(
 				"[Subscribe] Failed to send confirmation email:",
-				err.message,
+				err.message
 			);
 		}
 
 		return res.status(200).json({
 			message: "Subscription created. Check your email to confirm.",
 		});
-	},
+	}
 );
 
 /**
@@ -101,7 +103,7 @@ router.get("/confirm/:token", (req, res) => {
 	}
 
 	db.prepare("UPDATE subscriptions SET confirmed = 1 WHERE confirm_token = ?").run(
-		token,
+		token
 	);
 
 	return res.status(200).json({ message: "Subscription confirmed successfully" });
@@ -143,20 +145,24 @@ router.get("/subscriptions", (req, res) => {
 
 	const db = getDb();
 	const rows = db
-		.prepare(`
+		.prepare(
+			`
       SELECT email, repo, confirmed, last_seen_tag
       FROM subscriptions
       WHERE email = ?
       ORDER BY created_at DESC
-    `)
+    `
+		)
 		.all(email);
 
-	return res.status(200).json(rows.map((r) => ({
-		email: r.email,
-		repo: r.repo,
-		confirmed: r.confirmed === 1,
-		last_seen_tag: r.last_seen_tag,
-	})));
+	return res.status(200).json(
+		rows.map((r) => ({
+			email: r.email,
+			repo: r.repo,
+			confirmed: r.confirmed === 1,
+			last_seen_tag: r.last_seen_tag,
+		}))
+	);
 });
 
 module.exports = router;

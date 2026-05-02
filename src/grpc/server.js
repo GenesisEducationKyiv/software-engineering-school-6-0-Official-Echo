@@ -67,10 +67,12 @@ async function Subscribe(call, callback) {
 	const unsubscribeToken = uuidv4();
 
 	try {
-		db.prepare(`
+		db.prepare(
+			`
       INSERT INTO subscriptions (email, repo, confirm_token, unsubscribe_token)
       VALUES (?, ?, ?, ?)
-    `).run(email, repo, confirmToken, unsubscribeToken);
+    `
+		).run(email, repo, confirmToken, unsubscribeToken);
 	} catch (err) {
 		if (err.message.includes("UNIQUE constraint failed")) {
 			return callback({
@@ -102,7 +104,8 @@ function Confirm(call, callback) {
 	}
 
 	const db = getDb();
-	const sub = db.prepare("SELECT * FROM subscriptions WHERE confirm_token = ?")
+	const sub = db
+		.prepare("SELECT * FROM subscriptions WHERE confirm_token = ?")
 		.get(token);
 
 	if (!sub) {
@@ -111,7 +114,7 @@ function Confirm(call, callback) {
 	if (sub.confirmed) return callback(null, { message: "Already confirmed" });
 
 	db.prepare("UPDATE subscriptions SET confirmed = 1 WHERE confirm_token = ?").run(
-		token,
+		token
 	);
 	callback(null, { message: "Subscription confirmed successfully" });
 }
@@ -126,9 +129,9 @@ function Unsubscribe(call, callback) {
 	}
 
 	const db = getDb();
-	const result = db.prepare(
-		"DELETE FROM subscriptions WHERE unsubscribe_token = ?",
-	).run(token);
+	const result = db
+		.prepare("DELETE FROM subscriptions WHERE unsubscribe_token = ?")
+		.run(token);
 
 	if (result.changes === 0) {
 		return callback({ code: grpc.status.NOT_FOUND, message: "Token not found" });
@@ -148,7 +151,7 @@ function GetSubscriptions(call, callback) {
 	const db = getDb();
 	const rows = db
 		.prepare(
-			"SELECT email, repo, confirmed, last_seen_tag FROM subscriptions WHERE email = ?",
+			"SELECT email, repo, confirmed, last_seen_tag FROM subscriptions WHERE email = ?"
 		)
 		.all(email);
 
@@ -180,7 +183,7 @@ function startGrpcServer() {
 				return;
 			}
 			console.log(`[gRPC] Server listening on port ${port}`);
-		},
+		}
 	);
 
 	return server;

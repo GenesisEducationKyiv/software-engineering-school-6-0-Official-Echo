@@ -23,7 +23,7 @@ function getRedis() {
 			console.warn("[Redis] Unavailable:", err.message);
 		});
 
-		client.connect().catch(() => { });
+		client.connect().catch(() => {});
 	}
 	return client;
 }

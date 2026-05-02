@@ -1,5 +1,3 @@
-const { apiKeyAuth } = require("../src/middleware/auth");
-
 function mockRes() {
 	const res = {};
 	res.status = jest.fn().mockReturnValue(res);

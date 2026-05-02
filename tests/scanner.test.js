@@ -4,7 +4,6 @@ jest.mock("../src/db/database");
 
 const { getLatestRelease } = require("../src/services/github");
 const { sendReleaseNotification } = require("../src/services/notifier");
-const { getDb } = require("../src/db/database");
 const { checkRepo } = require("../src/services/scanner");
 
 beforeEach(() => jest.clearAllMocks());

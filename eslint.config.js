@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import globals from "globals";
+import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default defineConfig([
 	{
@@ -20,4 +21,5 @@ export default defineConfig([
 			"no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
 		},
 	},
+	eslintConfigPrettier,
 ]);

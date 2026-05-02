@@ -7,7 +7,7 @@
 		"start": "node src/index.js",
 		"dev": "nodemon src/index.js",
 		"test": "jest --coverage",
-		"lint": "eslint src tests --ext .js",
+		"lint": "eslint src tests",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"grpc": "node src/grpc/server.js"

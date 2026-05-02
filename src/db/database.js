@@ -1,6 +1,7 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
+const SQL = require("./queries/database.js");
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "../../data/app.db");
 
@@ -19,19 +20,7 @@ function getDb() {
 function runMigrations() {
 	const database = getDb();
 
-	database.exec(`
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id                INTEGER PRIMARY KEY AUTOINCREMENT,
-      email             TEXT    NOT NULL,
-      repo              TEXT    NOT NULL,
-      confirmed         INTEGER NOT NULL DEFAULT 0,
-      confirm_token     TEXT    NOT NULL UNIQUE,
-      unsubscribe_token TEXT    NOT NULL UNIQUE,
-      last_seen_tag     TEXT    DEFAULT NULL,
-      created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(email, repo)
-    );
-  `);
+	database.exec(SQL.CREATE_TABLE);
 
 	console.log("[DB] Migrations applied");
 }

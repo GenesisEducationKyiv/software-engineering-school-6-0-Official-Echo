@@ -2,9 +2,10 @@ const path = require("path");
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
 const { v4: uuidv4 } = require("uuid");
-const { getDb } = require("../db/database");
+const { getDb } = require("../db/database").default;
 const { isValidRepoFormat, repoExists } = require("../services/github");
 const { sendConfirmationEmail } = require("../services/notifier");
+const SQL = require("../db/queries/subscription.js");
 
 const PROTO_PATH = path.join(__dirname, "../../proto/notifier.proto");
 const GRPC_PORT = process.env.GRPC_PORT || 50051;
@@ -67,12 +68,12 @@ async function Subscribe(call, callback) {
 	const unsubscribeToken = uuidv4();
 
 	try {
-		db.prepare(
-			`
-      INSERT INTO subscriptions (email, repo, confirm_token, unsubscribe_token)
-      VALUES (?, ?, ?, ?)
-    `
-		).run(email, repo, confirmToken, unsubscribeToken);
+		db.prepare(SQL.INSERT_SUBSCRIPTION).run(
+			email,
+			repo,
+			confirmToken,
+			unsubscribeToken
+		);
 	} catch (err) {
 		if (err.message.includes("UNIQUE constraint failed")) {
 			return callback({
@@ -104,9 +105,7 @@ function Confirm(call, callback) {
 	}
 
 	const db = getDb();
-	const sub = db
-		.prepare("SELECT * FROM subscriptions WHERE confirm_token = ?")
-		.get(token);
+	const sub = db.prepare(SQL.CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
 
 	if (!sub) {
 		return callback({ code: grpc.status.NOT_FOUND, message: "Token not found" });
@@ -129,9 +128,7 @@ function Unsubscribe(call, callback) {
 	}
 
 	const db = getDb();
-	const result = db
-		.prepare("DELETE FROM subscriptions WHERE unsubscribe_token = ?")
-		.run(token);
+	const result = db.prepare(SQL.DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
 
 	if (result.changes === 0) {
 		return callback({ code: grpc.status.NOT_FOUND, message: "Token not found" });
@@ -149,11 +146,7 @@ function GetSubscriptions(call, callback) {
 	}
 
 	const db = getDb();
-	const rows = db
-		.prepare(
-			"SELECT email, repo, confirmed, last_seen_tag FROM subscriptions WHERE email = ?"
-		)
-		.all(email);
+	const rows = db.prepare(SQL.GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
 
 	callback(null, {
 		subscriptions: rows.map((r) => ({

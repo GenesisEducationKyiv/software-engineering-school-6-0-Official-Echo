@@ -1,9 +1,10 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
-const { getDb } = require("../db/database");
+const { getDb } = require("../db/database").default;
 const { isValidRepoFormat, repoExists } = require("../services/github");
 const { sendConfirmationEmail } = require("../services/notifier");
 const { validate, validateEmail } = require("../middleware/validate");
+const SQL = require("../db/queries/subscription.js");
 
 const router = express.Router();
 
@@ -48,12 +49,12 @@ router.post(
 		const unsubscribeToken = uuidv4();
 
 		try {
-			db.prepare(
-				`
-        INSERT INTO subscriptions (email, repo, confirm_token, unsubscribe_token)
-        VALUES (?, ?, ?, ?)
-      `
-			).run(email, repo, confirmToken, unsubscribeToken);
+			db.prepare(SQL.INSERT_SUBSCRIPTION).run(
+				email,
+				repo,
+				confirmToken,
+				unsubscribeToken
+			);
 		} catch (err) {
 			if (err.message.includes("UNIQUE constraint failed")) {
 				return res.status(409).json({
@@ -90,9 +91,7 @@ router.get("/confirm/:token", (req, res) => {
 	}
 
 	const db = getDb();
-	const sub = db
-		.prepare("SELECT * FROM subscriptions WHERE confirm_token = ?")
-		.get(token);
+	const sub = db.prepare(SQL.CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
 
 	if (!sub) {
 		return res.status(404).json({ error: "Token not found" });
@@ -121,9 +120,7 @@ router.get("/unsubscribe/:token", (req, res) => {
 	}
 
 	const db = getDb();
-	const result = db
-		.prepare("DELETE FROM subscriptions WHERE unsubscribe_token = ?")
-		.run(token);
+	const result = db.prepare(SQL.DELETE_SUBSCRIPTION_BY_TOKEN).run(token);
 
 	if (result.changes === 0) {
 		return res.status(404).json({ error: "Token not found" });
@@ -144,16 +141,7 @@ router.get("/subscriptions", (req, res) => {
 	}
 
 	const db = getDb();
-	const rows = db
-		.prepare(
-			`
-      SELECT email, repo, confirmed, last_seen_tag
-      FROM subscriptions
-      WHERE email = ?
-      ORDER BY created_at DESC
-    `
-		)
-		.all(email);
+	const rows = db.prepare(SQL.GET_SUBSCRIPTIONS_BY_EMAIL).all(email);
 
 	return res.status(200).json(
 		rows.map((r) => ({

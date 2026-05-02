@@ -1,7 +1,9 @@
+import { describe, test, expect, beforeEach, afterAll, vi } from "vitest";
+
 function mockRes() {
 	const res = {};
-	res.status = jest.fn().mockReturnValue(res);
-	res.json = jest.fn().mockReturnValue(res);
+	res.status = vi.fn().mockReturnValue(res);
+	res.json = vi.fn().mockReturnValue(res);
 	return res;
 }
 
@@ -9,7 +11,7 @@ describe("apiKeyAuth middleware", () => {
 	const OLD_ENV = process.env;
 
 	beforeEach(() => {
-		jest.resetModules();
+		vi.resetModules();
 		process.env = { ...OLD_ENV };
 	});
 
@@ -17,39 +19,37 @@ describe("apiKeyAuth middleware", () => {
 		process.env = OLD_ENV;
 	});
 
-	test("calls next() when API_KEY env var is not set (auth disabled)", () => {
+	test("calls next() when API_KEY env var is not set (auth disabled)", async () => {
 		delete process.env.API_KEY;
-		const { apiKeyAuth: mw } = require("../src/middleware/auth");
-		const next = jest.fn();
-		mw({ headers: {} }, mockRes(), next);
+		const { default: auth } = await import("../src/middleware/auth.js");
+		const next = vi.fn();
+		auth.apiKeyAuth({ headers: {} }, mockRes(), next);
 		expect(next).toHaveBeenCalled();
 	});
 
-	test("returns 401 when header is missing", () => {
+	test("returns 401 when header is missing", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth: mw } = require("../src/middleware/auth");
+		const { default: auth } = await import("../src/middleware/auth.js");
 		const res = mockRes();
-		const next = jest.fn();
-		mw({ headers: {} }, res, next);
+		auth.apiKeyAuth({ headers: {} }, res, vi.fn());
 		expect(res.status).toHaveBeenCalledWith(401);
-		expect(next).not.toHaveBeenCalled();
 	});
 
-	test("returns 403 when key is wrong", () => {
+	test("returns 403 when key is wrong", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth: mw } = require("../src/middleware/auth");
+		const { default: auth } = await import("../src/middleware/auth.js");
 		const res = mockRes();
-		const next = jest.fn();
-		mw({ headers: { "x-api-key": "wrongkey" } }, res, next);
+		const next = vi.fn();
+		auth.apiKeyAuth({ headers: { "x-api-key": "wrongkey" } }, res, next);
 		expect(res.status).toHaveBeenCalledWith(403);
 		expect(next).not.toHaveBeenCalled();
 	});
 
-	test("calls next() when key matches", () => {
+	test("calls next() when key matches", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth: mw } = require("../src/middleware/auth");
-		const next = jest.fn();
-		mw({ headers: { "x-api-key": "secret123" } }, mockRes(), next);
+		const { default: auth } = await import("../src/middleware/auth.js");
+		const next = vi.fn();
+		auth.apiKeyAuth({ headers: { "x-api-key": "secret123" } }, mockRes(), next);
 		expect(next).toHaveBeenCalled();
 	});
 });

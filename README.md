@@ -22,7 +22,7 @@ A Node.js service that lets users subscribe to email notifications for new GitHu
 - **prom-client** — Prometheus metrics
 - **@grpc/grpc-js** — gRPC server
 - **uuid** — confirmation and unsubscribe token generation
-- **Jest** — unit tests
+- **Vitest** — unit tests
 - **ESLint** — linting
 - **GitHub Actions** — CI
 

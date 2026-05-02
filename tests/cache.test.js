@@ -1,3 +1,6 @@
+import { describe, test, expect, vi } from "vitest";
+import { cacheGet, cacheDel, cacheSet } from "../src/services/cache";
+
 // Test the cache logic in isolation with a simple in-memory store
 // We test the public interface: cacheGet/cacheSet/cacheDel
 
@@ -51,21 +54,23 @@ describe("cache service (unit logic)", () => {
 });
 
 describe("cache service (graceful degradation)", () => {
-	// Verify the real cache module does NOT throw when Redis is unavailable
 	test("cacheGet returns null without throwing when Redis is down", async () => {
-		jest.resetModules();
-		jest.mock("ioredis", () => {
-			return jest.fn(() => ({
-				on: jest.fn().mockReturnThis(),
-				connect: jest
-					.fn()
-					.mockRejectedValue(new Error("Connection refused")),
-				get: jest.fn().mockRejectedValue(new Error("Connection refused")),
-				set: jest.fn().mockRejectedValue(new Error("Connection refused")),
-				del: jest.fn().mockRejectedValue(new Error("Connection refused")),
-			}));
+		vi.resetModules();
+
+		vi.mock("ioredis", () => {
+			return {
+				default: vi.fn(() => ({
+					on: vi.fn().mockReturnThis(),
+					connect: vi
+						.fn()
+						.mockRejectedValue(new Error("Connection refused")),
+					get: vi.fn().mockRejectedValue(new Error("Connection refused")),
+					set: vi.fn().mockRejectedValue(new Error("Connection refused")),
+					del: vi.fn().mockRejectedValue(new Error("Connection refused")),
+				})),
+			};
 		});
-		const { cacheGet, cacheSet, cacheDel } = require("../src/services/cache");
+
 		await expect(cacheGet("any")).resolves.toBeNull();
 		await expect(cacheSet("any", "val")).resolves.toBeUndefined();
 		await expect(cacheDel("any")).resolves.toBeUndefined();

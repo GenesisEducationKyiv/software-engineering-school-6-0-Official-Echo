@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm test
+        run: pnpm test:ci
         env:
           DB_PATH: ":memory:"
           NODE_ENV: test

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterAll, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
 
 function mockRes() {
 	const res = {};

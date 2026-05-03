@@ -5,10 +5,10 @@ import { isValidRepoFormat, repoExists } from "../services/github.js";
 import { sendConfirmationEmail } from "../services/notifier.js";
 import { validate, validateEmail } from "../middleware/validate.js";
 import {
-	INSERT_SUBSCRIPTION,
 	CONFIRM_SUBSCRIPTION_BY_TOKEN,
 	DELETE_SUBSCRIPTION_BY_TOKEN,
 	GET_SUBSCRIPTIONS_BY_EMAIL,
+	INSERT_SUBSCRIPTION,
 } from "../db/queries/subscription.js";
 
 const router = Router();

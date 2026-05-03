@@ -6,7 +6,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import apiKeyAuth from "./middleware/auth.js";
 import { startScanner } from "./services/scanner.js";
 import { startGrpcServer } from "./grpc/server.js";
-import { register, metricsMiddleware } from "./services/metrics.js";
+import { metricsMiddleware, register } from "./services/metrics.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;

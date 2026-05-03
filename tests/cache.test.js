@@ -1,5 +1,5 @@
-import { describe, test, expect, vi } from "vitest";
-import { cacheGet, cacheDel, cacheSet } from "../src/services/cache";
+import { describe, expect, test, vi } from "vitest";
+import { cacheDel, cacheGet, cacheSet } from "../src/services/cache";
 
 // Test the cache logic in isolation with a simple in-memory store
 // We test the public interface: cacheGet/cacheSet/cacheDel

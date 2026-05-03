@@ -1,9 +1,9 @@
 import {
+	Counter,
+	Gauge,
+	Histogram,
 	Registry,
 	collectDefaultMetrics,
-	Counter,
-	Histogram,
-	Gauge,
 } from "prom-client";
 
 const register = new Registry();

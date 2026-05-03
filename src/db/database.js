@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { join, dirname } from "path";
+import { dirname, join } from "path";
 import { mkdirSync } from "fs";
 import { CREATE_TABLE } from "./queries/database.js";
 

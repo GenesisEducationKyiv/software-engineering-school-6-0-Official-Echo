@@ -1,12 +1,13 @@
-import { join } from "path";
 import express, { json } from "express";
+import { join } from "path";
+
 import { runMigrations } from "./db/database.js";
-import subscriptionsRouter from "./routes/subscriptions.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import apiKeyAuth from "./middleware/auth.js";
-import { startScanner } from "./services/scanner.js";
 import { startGrpcServer } from "./grpc/server.js";
+import apiKeyAuth from "./middleware/auth.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import subscriptionsRouter from "./routes/subscriptions.js";
 import { metricsMiddleware, register } from "./services/metrics.js";
+import { startScanner } from "./services/scanner.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;

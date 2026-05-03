@@ -1,15 +1,16 @@
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
+
 import { getDb } from "../db/database.js";
-import { isValidRepoFormat, repoExists } from "../services/github.js";
-import { sendConfirmationEmail } from "../services/notifier.js";
-import { validate, validateEmail } from "../middleware/validate.js";
 import {
 	CONFIRM_SUBSCRIPTION_BY_TOKEN,
 	DELETE_SUBSCRIPTION_BY_TOKEN,
 	GET_SUBSCRIPTIONS_BY_EMAIL,
 	INSERT_SUBSCRIPTION,
 } from "../db/queries/subscription.js";
+import { validate, validateEmail } from "../middleware/validate.js";
+import { isValidRepoFormat, repoExists } from "../services/github.js";
+import { sendConfirmationEmail } from "../services/notifier.js";
 
 const router = Router();
 

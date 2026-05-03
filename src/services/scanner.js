@@ -1,13 +1,14 @@
 import { schedule } from "node-cron";
+
 import { getDb } from "../db/database.js";
-import { getLatestRelease } from "./github.js";
-import { sendReleaseNotification } from "./notifier.js";
-import { notificationsSentTotal, scannerRunsTotal } from "./metrics.js";
 import {
 	GET_CONFIRMED_REPOS,
 	GET_CONFIRMED_SUBSCRIBERS_BY_REPO,
 	UPDATE_SUB_LAST_SEEN_TAG_BY_ID,
 } from "../db/queries/repo.js";
+import { getLatestRelease } from "./github.js";
+import { notificationsSentTotal, scannerRunsTotal } from "./metrics.js";
+import { sendReleaseNotification } from "./notifier.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
 
@@ -80,4 +81,4 @@ function startScanner() {
 	scanAllRepos().catch(console.error);
 }
 
-export { startScanner, scanAllRepos, checkRepo };
+export { checkRepo, scanAllRepos, startScanner };

@@ -1,4 +1,5 @@
 import axios from "axios";
+
 import { cacheGet, cacheSet } from "./cache.js";
 
 const githubClient = axios.create({
@@ -71,4 +72,4 @@ async function getLatestRelease(repo) {
 	}
 }
 
-export { isValidRepoFormat, repoExists, getLatestRelease };
+export { getLatestRelease, isValidRepoFormat, repoExists };

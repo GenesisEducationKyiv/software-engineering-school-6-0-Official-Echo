@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+
 import { validate, validateEmail } from "../src/middleware/validate";
 
 function mockRes() {

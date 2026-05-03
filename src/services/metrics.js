@@ -1,9 +1,9 @@
 import {
+	collectDefaultMetrics,
 	Counter,
 	Gauge,
 	Histogram,
 	Registry,
-	collectDefaultMetrics,
 } from "prom-client";
 
 const register = new Registry();
@@ -63,10 +63,10 @@ function metricsMiddleware(req, res, next) {
 }
 
 export {
-	register,
-	metricsMiddleware,
-	subscriptionsTotal,
 	confirmedSubscriptionsTotal,
+	metricsMiddleware,
 	notificationsSentTotal,
+	register,
 	scannerRunsTotal,
+	subscriptionsTotal,
 };

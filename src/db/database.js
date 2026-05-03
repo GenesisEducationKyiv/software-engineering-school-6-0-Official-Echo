@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
-import { dirname, join } from "path";
 import { mkdirSync } from "fs";
+import { dirname, join } from "path";
+
 import { CREATE_TABLE } from "./queries/database.js";
 
 const DB_PATH =
@@ -33,4 +34,4 @@ function _resetDb() {
 	}
 }
 
-export { getDb, runMigrations, _resetDb };
+export { _resetDb, getDb, runMigrations };

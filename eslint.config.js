@@ -1,7 +1,8 @@
 import js from "@eslint/js";
 import { defineConfig } from "eslint/config";
-import globals from "globals";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import globals from "globals";
 
 export default defineConfig([
 	{
@@ -9,11 +10,16 @@ export default defineConfig([
 		extends: [js.configs.recommended],
 		plugins: {
 			js,
+			simpleImportSort,
 		},
 		languageOptions: {
 			globals: {
 				...globals.node,
 				...globals.vitest,
+			},
+			parserOptions: {
+				sourceType: "module",
+				ecmaVersion: "latest",
 			},
 		},
 		rules: {
@@ -34,7 +40,7 @@ export default defineConfig([
 			"grouped-accessor-pairs": ["warn", "getBeforeSet"],
 			"new-cap": ["error", { capIsNew: false, properties: false }],
 			"no-else-return": "error",
-			"eqeqeq": "error",
+			eqeqeq: "error",
 			"no-eval": "error",
 			"no-implied-eval": "error",
 			"no-extend-native": "error",
@@ -50,8 +56,10 @@ export default defineConfig([
 			"prefer-const": ["warn", { destructuring: "all" }],
 			"prefer-exponentiation-operator": "warn",
 			"prefer-template": "warn",
-			"sort-imports": "warn",
 			yoda: "error",
+
+			"simpleImportSort/imports": "warn",
+			"simpleImportSort/exports": "warn",
 		},
 	},
 	eslintConfigPrettier,

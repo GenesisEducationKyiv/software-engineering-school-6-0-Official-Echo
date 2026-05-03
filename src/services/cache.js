@@ -66,4 +66,4 @@ async function cacheDel(key) {
 	}
 }
 
-export { getRedis, cacheGet, cacheSet, cacheDel };
+export { cacheDel, cacheGet, cacheSet, getRedis };

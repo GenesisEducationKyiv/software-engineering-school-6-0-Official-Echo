@@ -1,21 +1,22 @@
-import { join } from "path";
 import {
+	loadPackageDefinition,
 	Server,
 	ServerCredentials,
-	loadPackageDefinition,
 	status,
 } from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
+import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
+
 import { getDb } from "../db/database.js";
-import { isValidRepoFormat, repoExists } from "../services/github.js";
-import { sendConfirmationEmail } from "../services/notifier.js";
 import {
 	CONFIRM_SUBSCRIPTION_BY_TOKEN,
 	DELETE_SUBSCRIPTION_BY_TOKEN,
 	GET_SUBSCRIPTIONS_BY_EMAIL,
 	INSERT_SUBSCRIPTION,
 } from "../db/queries/subscription.js";
+import { isValidRepoFormat, repoExists } from "../services/github.js";
+import { sendConfirmationEmail } from "../services/notifier.js";
 
 const PROTO_PATH = join(import.meta.dirname, "../../proto/notifier.proto");
 const GRPC_PORT = process.env.GRPC_PORT || 50051;

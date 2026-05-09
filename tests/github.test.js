@@ -1,4 +1,24 @@
-const { isValidRepoFormat } = require("../src/services/github");
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+vi.mock("axios");
+vi.mock("../src/services/cache.js", () => ({
+	cacheGet: vi.fn().mockResolvedValue(null),
+	cacheSet: vi.fn().mockResolvedValue(undefined),
+}));
+
+let github;
+let mockGet;
+
+beforeEach(async () => {
+	vi.resetModules();
+
+	mockGet = vi.fn();
+
+	const { default: axios } = await import("axios");
+	axios.create = vi.fn().mockReturnValue({ get: mockGet });
+
+	github = await import("../src/services/github.js");
+});
 
 describe("isValidRepoFormat", () => {
 	test.each([
@@ -7,7 +27,7 @@ describe("isValidRepoFormat", () => {
 		["user-123/my_repo.js", true],
 		["org.name/repo-name", true],
 	])("accepts valid: %s", (input, expected) => {
-		expect(isValidRepoFormat(input)).toBe(expected);
+		expect(github.isValidRepoFormat(input)).toBe(expected);
 	});
 
 	test.each([
@@ -19,21 +39,11 @@ describe("isValidRepoFormat", () => {
 		["user name/repo", false],
 		["user@name/repo", false],
 	])("rejects invalid: %s", (input, expected) => {
-		expect(isValidRepoFormat(input)).toBe(expected);
+		expect(github.isValidRepoFormat(input)).toBe(expected);
 	});
 });
 
 describe("GitHub API (mocked)", () => {
-	let github;
-	const mockGet = jest.fn();
-
-	beforeEach(() => {
-		jest.resetModules();
-		jest.mock("axios", () => ({ create: () => ({ get: mockGet }) }));
-		mockGet.mockReset();
-		github = require("../src/services/github");
-	});
-
 	describe("repoExists", () => {
 		test("returns true for 200", async () => {
 			mockGet.mockResolvedValue({ data: {} });
@@ -49,6 +59,7 @@ describe("GitHub API (mocked)", () => {
 			mockGet.mockRejectedValue({
 				response: { status: 429, headers: { "retry-after": "30" } },
 			});
+
 			await expect(github.repoExists("x/y")).rejects.toMatchObject({
 				status: 429,
 			});
@@ -70,6 +81,7 @@ describe("GitHub API (mocked)", () => {
 			mockGet.mockRejectedValue({
 				response: { status: 429, headers: { "retry-after": "60" } },
 			});
+
 			await expect(github.getLatestRelease("x/y")).rejects.toMatchObject({
 				status: 429,
 			});

@@ -1,7 +1,7 @@
-const nodemailer = require("nodemailer");
+import { createTransport as _createTransport } from "nodemailer";
 
 function createTransport() {
-	return nodemailer.createTransport({
+	return _createTransport({
 		host: process.env.SMTP_HOST || "smtp.ethereal.email",
 		port: parseInt(process.env.SMTP_PORT || "587"),
 		secure: process.env.SMTP_SECURE === "true",
@@ -26,8 +26,7 @@ async function sendConfirmationEmail({ email, repo, confirmToken }) {
 		from: FROM,
 		to: email,
 		subject: `Confirm your subscription to ${repo} releases`,
-		text:
-			`Please confirm your subscription to ${repo} releases:\n\n${confirmUrl}`,
+		text: `Please confirm your subscription to ${repo} releases:\n\n${confirmUrl}`,
 		html: `
       <h2>Confirm subscription</h2>
       <p>You requested to receive release notifications for <strong>${repo}</strong>.</p>
@@ -49,8 +48,7 @@ async function sendReleaseNotification({ email, repo, tag, unsubscribeToken }) {
 		from: FROM,
 		to: email,
 		subject: `New release: ${repo} — ${tag}`,
-		text:
-			`New release for ${repo}: ${tag}\n\n${releaseUrl}\n\nUnsubscribe: ${unsubUrl}`,
+		text: `New release for ${repo}: ${tag}\n\n${releaseUrl}\n\nUnsubscribe: ${unsubUrl}`,
 		html: `
       <h2>New release: <a href="https://github.com/${repo}">${repo}</a></h2>
       <p>Tag: <strong>${tag}</strong></p>
@@ -61,4 +59,4 @@ async function sendReleaseNotification({ email, repo, tag, unsubscribeToken }) {
 	});
 }
 
-module.exports = { sendConfirmationEmail, sendReleaseNotification };
+export { sendConfirmationEmail, sendReleaseNotification };

@@ -1,8 +1,14 @@
-const cron = require("node-cron");
-const { getDb } = require("../db/database");
-const { getLatestRelease } = require("./github");
-const { sendReleaseNotification } = require("./notifier");
-const { notificationsSentTotal, scannerRunsTotal } = require("./metrics");
+import { schedule } from "node-cron";
+
+import { getDb } from "../db/database.js";
+import {
+	GET_CONFIRMED_REPOS,
+	GET_CONFIRMED_SUBSCRIBERS_BY_REPO,
+	UPDATE_SUB_LAST_SEEN_TAG_BY_ID,
+} from "../db/queries/repo.js";
+import { getLatestRelease } from "./github.js";
+import { notificationsSentTotal, scannerRunsTotal } from "./metrics.js";
+import { sendReleaseNotification } from "./notifier.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
 
@@ -10,9 +16,7 @@ async function scanAllRepos() {
 	scannerRunsTotal.inc();
 	const db = getDb();
 
-	const repos = db
-		.prepare(`SELECT DISTINCT repo FROM subscriptions WHERE confirmed = 1`)
-		.all();
+	const repos = db.prepare(GET_CONFIRMED_REPOS).all();
 
 	console.log(`[Scanner] Checking ${repos.length} repo(s)...`);
 
@@ -22,7 +26,7 @@ async function scanAllRepos() {
 		} catch (err) {
 			if (err.status === 429) {
 				console.warn(
-					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`,
+					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`
 				);
 				break;
 			}
@@ -37,20 +41,13 @@ async function checkRepo(db, repo) {
 	const latestTag = await getLatestRelease(repo);
 	if (!latestTag) return;
 
-	const subscribers = db
-		.prepare(
-			`SELECT id, email, unsubscribe_token, last_seen_tag
-       FROM subscriptions
-       WHERE repo = ? AND confirmed = 1`,
-		)
-		.all(repo);
+	const subscribers = db.prepare(GET_CONFIRMED_SUBSCRIBERS_BY_REPO).all(repo);
 
 	for (const sub of subscribers) {
 		if (sub.last_seen_tag === null) {
-			db.prepare(`UPDATE subscriptions SET last_seen_tag = ? WHERE id = ?`)
-				.run(latestTag, sub.id);
+			db.prepare(UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
 			console.log(
-				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`,
+				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`
 			);
 			continue;
 		}
@@ -61,10 +58,7 @@ async function checkRepo(db, repo) {
 		}
 
 		console.log(`[Scanner] ${repo} — ${sub.email}: NEW release ${latestTag}`);
-		db.prepare(`UPDATE subscriptions SET last_seen_tag = ? WHERE id = ?`).run(
-			latestTag,
-			sub.id,
-		);
+		db.prepare(UPDATE_SUB_LAST_SEEN_TAG_BY_ID).run(latestTag, sub.id);
 
 		try {
 			await sendReleaseNotification({
@@ -83,8 +77,8 @@ async function checkRepo(db, repo) {
 
 function startScanner() {
 	console.log(`[Scanner] Starting, schedule: ${CRON_SCHEDULE}`);
-	cron.schedule(CRON_SCHEDULE, scanAllRepos);
+	schedule(CRON_SCHEDULE, scanAllRepos);
 	scanAllRepos().catch(console.error);
 }
 
-module.exports = { startScanner, scanAllRepos, checkRepo };
+export { checkRepo, scanAllRepos, startScanner };

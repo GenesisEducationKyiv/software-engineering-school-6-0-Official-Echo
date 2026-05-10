@@ -1,5 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
 
+import { ConfirmError } from "../errors/constants/confirm.js";
+import { GetSubscriptionsError } from "../errors/constants/getSubscriptions.js";
+import { SubscribeError } from "../errors/constants/subscribe.js";
+import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
+import {
+	ConflictError,
+	NotFoundError,
+	RateLimitError,
+	ValidationError,
+} from "../errors/index.js";
 import {
 	confirmSubscription,
 	deleteByUnsubscribeToken,
@@ -10,66 +20,52 @@ import {
 import { isValidRepoFormat, repoExists } from "./github.js";
 import { sendConfirmationEmail } from "./notifier.js";
 
-export const SubscribeError = Object.freeze({
-	MISSING_FIELDS: "MISSING_FIELDS",
-	INVALID_EMAIL: "INVALID_EMAIL",
-	INVALID_REPO_FORMAT: "INVALID_REPO_FORMAT",
-	REPO_NOT_FOUND: "REPO_NOT_FOUND",
-	RATE_LIMITED: "RATE_LIMITED",
-	ALREADY_EXISTS: "ALREADY_EXISTS",
-	INTERNAL: "INTERNAL",
-});
-
 /**
  * Subscribes an email to repo release notifications.
- * @returns {{ ok: true, message: string } | { ok: false, error: string, code: string }}
+ * @returns {{ ok: true, message: string }}
+ * @throws { AppError }
  */
 export async function subscribe(email, repo) {
 	if (!email || !repo) {
-		return {
-			ok: false,
-			code: SubscribeError.MISSING_FIELDS,
-			error: "email and repo are required",
-		};
+		throw new ValidationError(
+			"Email or repository missing",
+			SubscribeError.MISSING_FIELDS
+		);
 	}
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		return {
-			ok: false,
-			code: SubscribeError.INVALID_EMAIL,
-			error: "Invalid email address",
-		};
+		throw new ValidationError(
+			"Invalid email address",
+			SubscribeError.INVALID_EMAIL
+		);
 	}
 	if (!isValidRepoFormat(repo)) {
-		return {
-			ok: false,
-			code: SubscribeError.INVALID_REPO_FORMAT,
-			error: "Invalid repo format. Use owner/repo",
-		};
+		throw new ValidationError(
+			"Invalid repo format. Use owner/repo",
+			SubscribeError.INVALID_REPO_FORMAT
+		);
 	}
 
 	try {
 		const exists = await repoExists(repo);
 		if (!exists) {
-			return {
-				ok: false,
-				code: SubscribeError.REPO_NOT_FOUND,
-				error: `Repository "${repo}" not found`,
-			};
+			throw new NotFoundError(
+				`Repository "${repo}" not found`,
+				SubscribeError.REPO_NOT_FOUND
+			);
 		}
 	} catch (err) {
-		if (err.status === 429) {
-			return {
-				ok: false,
-				code: SubscribeError.RATE_LIMITED,
-				error: "GitHub rate limit exceeded",
-				retryAfter: err.retryAfter,
-			};
+		if (err instanceof NotFoundError) throw err;
+
+		if (err instanceof RateLimitError) {
+			throw new RateLimitError(
+				"GitHub rate limit exceeded",
+				SubscribeError.RATE_LIMITED
+			);
 		}
-		return {
-			ok: false,
-			code: SubscribeError.INTERNAL,
-			error: "Failed to verify repository",
-		};
+
+		throw new Error(`Failed to verify repository: ${err.message}`, {
+			cause: err,
+		});
 	}
 
 	const confirmToken = uuidv4();
@@ -79,13 +75,12 @@ export async function subscribe(email, repo) {
 		insertSubscription(email, repo, confirmToken, unsubscribeToken);
 	} catch (err) {
 		if (err.message.includes("UNIQUE constraint failed")) {
-			return {
-				ok: false,
-				code: SubscribeError.ALREADY_EXISTS,
-				error: "Already subscribed to this repository",
-			};
+			throw new ConflictError(
+				"Already subscribed to this repository",
+				SubscribeError.ALREADY_EXISTS
+			);
 		}
-		return { ok: false, code: SubscribeError.INTERNAL, error: "Database error" };
+		throw new Error("Database error", { cause: err });
 	}
 
 	try {
@@ -103,28 +98,21 @@ export async function subscribe(email, repo) {
 	};
 }
 
-export const ConfirmError = Object.freeze({
-	MISSING_TOKEN: "MISSING_TOKEN",
-	NOT_FOUND: "NOT_FOUND",
-});
-
 /**
  * Confirms a subscription by token.
- * @returns {{ ok: true, message: string, alreadyConfirmed?: boolean } | { ok: false, error: string, code: string }}
+ * @returns {{ ok: true, message: string, alreadyConfirmed?: boolean }}
+ * @throws { AppError }
  */
 export function confirm(token) {
 	if (!token) {
-		return {
-			ok: false,
-			code: ConfirmError.MISSING_TOKEN,
-			error: "Invalid token",
-		};
+		throw new ValidationError("Invalid token", ConfirmError.MISSING_TOKEN);
 	}
 
 	const sub = findByConfirmToken(token);
 	if (!sub) {
-		return { ok: false, code: ConfirmError.NOT_FOUND, error: "Token not found" };
+		throw new NotFoundError("Token not found", ConfirmError.NOT_FOUND);
 	}
+
 	if (sub.confirmed) {
 		return { ok: true, message: "Already confirmed", alreadyConfirmed: true };
 	}
@@ -133,50 +121,33 @@ export function confirm(token) {
 	return { ok: true, message: "Subscription confirmed successfully" };
 }
 
-export const UnsubscribeError = Object.freeze({
-	MISSING_TOKEN: "MISSING_TOKEN",
-	NOT_FOUND: "NOT_FOUND",
-});
-
 /**
  * Unsubscribes by token.
- * @returns {{ ok: true, message: string } | { ok: false, error: string, code: string }}
+ * @returns {{ ok: true, message: string }}
  */
 export function unsubscribe(token) {
 	if (!token) {
-		return {
-			ok: false,
-			code: UnsubscribeError.MISSING_TOKEN,
-			error: "Invalid token",
-		};
+		throw new ValidationError("Invalid token", UnsubscribeError.MISSING_TOKEN);
 	}
 
 	const result = deleteByUnsubscribeToken(token);
 	if (result.changes === 0) {
-		return {
-			ok: false,
-			code: UnsubscribeError.NOT_FOUND,
-			error: "Token not found",
-		};
+		throw new NotFoundError("Token not found", UnsubscribeError.NOT_FOUND);
 	}
+
 	return { ok: true, message: "Unsubscribed successfully" };
 }
 
-export const GetSubscriptionsError = Object.freeze({
-	INVALID_EMAIL: "INVALID_EMAIL",
-});
-
 /**
  * Returns all subscriptions for a given email.
- * @returns {{ ok: true, subscriptions: Array } | { ok: false, error: string, code: string }}
+ * @returns {{ ok: true, subscriptions: Array }}
  */
 export function getSubscriptions(email) {
 	if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		return {
-			ok: false,
-			code: GetSubscriptionsError.INVALID_EMAIL,
-			error: "Invalid email",
-		};
+		throw new ValidationError(
+			"Invalid email",
+			GetSubscriptionsError.INVALID_EMAIL
+		);
 	}
 
 	const rows = findAllByEmail(email);

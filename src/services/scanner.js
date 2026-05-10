@@ -1,5 +1,6 @@
 import { schedule } from "node-cron";
 
+import { RateLimitError } from "../errors/index.js";
 import {
 	findConfirmedRepos,
 	findConfirmedSubscribersByRepo,
@@ -21,7 +22,7 @@ export async function scanAllRepos() {
 		try {
 			await checkRepo(repo);
 		} catch (err) {
-			if (err.status === 429) {
+			if (err instanceof RateLimitError) {
 				console.warn(
 					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`
 				);

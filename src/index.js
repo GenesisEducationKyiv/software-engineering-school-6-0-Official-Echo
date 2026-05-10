@@ -2,9 +2,9 @@ import express, { json } from "express";
 import { join } from "path";
 
 import { runMigrations } from "./db/database.js";
+import { httpErrorHandler } from "./errors/httpHandler.js";
 import { startGrpcServer } from "./grpc/server.js";
 import { apiKeyAuth } from "./middleware/auth.js";
-import { errorHandler } from "./middleware/errorHandler.js";
 import subscriptionsRouter from "./routes/subscriptions.js";
 import { metricsMiddleware, register } from "./services/metrics.js";
 import { startScanner } from "./services/scanner.js";
@@ -35,7 +35,7 @@ app.use(
 	subscriptionsRouter
 );
 
-app.use(errorHandler);
+app.use(httpErrorHandler);
 
 runMigrations();
 

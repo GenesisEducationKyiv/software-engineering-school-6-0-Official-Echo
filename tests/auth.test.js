@@ -27,22 +27,24 @@ describe("apiKeyAuth middleware", () => {
 		expect(next).toHaveBeenCalled();
 	});
 
-	test("returns 401 when header is missing", async () => {
+	test("returns unauthorized when header is missing", async () => {
 		process.env.API_KEY = "secret123";
 		const { apiKeyAuth } = await import("../src/middleware/auth.js");
+		const { UnauthorizedError } = await import("../src/errors/index.js");
 		const res = mockRes();
-		apiKeyAuth({ headers: {} }, res, vi.fn());
-		expect(res.status).toHaveBeenCalledWith(401);
+		const next = vi.fn();
+		apiKeyAuth({ headers: {} }, res, next);
+		expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedError));
 	});
 
-	test("returns 403 when key is wrong", async () => {
+	test("returns forbidden when key is wrong", async () => {
 		process.env.API_KEY = "secret123";
 		const { apiKeyAuth } = await import("../src/middleware/auth.js");
+		const { ForbiddenError } = await import("../src/errors/index.js");
 		const res = mockRes();
 		const next = vi.fn();
 		apiKeyAuth({ headers: { "x-api-key": "wrongkey" } }, res, next);
-		expect(res.status).toHaveBeenCalledWith(403);
-		expect(next).not.toHaveBeenCalled();
+		expect(next).toHaveBeenCalledWith(expect.any(ForbiddenError));
 	});
 
 	test("calls next() when key matches", async () => {

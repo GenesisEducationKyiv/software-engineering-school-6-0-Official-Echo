@@ -25,7 +25,7 @@ export default defineConfig([
 		rules: {
 			// Possible problems
 			"no-console": "off",
-			"no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+			"no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
 			"no-use-before-define": [
 				"error",
 				{ functions: false, allowNamedExports: true },

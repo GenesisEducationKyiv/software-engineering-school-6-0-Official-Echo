@@ -1,10 +1,9 @@
-const API_KEY = process.env.API_KEY;
-
 /**
  * Protects routes with an API key passed in the X-API-Key header.
  * If API_KEY env var is not set, auth is disabled (dev mode).
  */
-function apiKeyAuth(req, res, next) {
+export function apiKeyAuth(req, res, next) {
+	const API_KEY = process.env.API_KEY;
 	if (!API_KEY) return next();
 
 	const provided = req.headers["x-api-key"];
@@ -16,5 +15,3 @@ function apiKeyAuth(req, res, next) {
 	}
 	next();
 }
-
-export default { apiKeyAuth };

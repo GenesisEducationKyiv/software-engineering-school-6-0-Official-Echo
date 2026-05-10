@@ -1,21 +1,13 @@
-import {
-	loadPackageDefinition,
-	Server,
-	ServerCredentials,
-	status,
-} from "@grpc/grpc-js";
+import { loadPackageDefinition, Server, ServerCredentials } from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 import { join } from "path";
 
+import { catchGrpcErrors } from "../errors/grpcHandler.js";
 import {
 	confirm,
-	ConfirmError,
 	getSubscriptions,
-	GetSubscriptionsError,
 	subscribe,
-	SubscribeError,
 	unsubscribe,
-	UnsubscribeError,
 } from "../services/subscriptionService.js";
 
 const PROTO_PATH = join(import.meta.dirname, "../../proto/notifier.proto");
@@ -31,79 +23,27 @@ const packageDef = loadSync(PROTO_PATH, {
 
 const proto = loadPackageDefinition(packageDef).notifier;
 
-async function Subscribe(call, callback) {
+const Subscribe = catchGrpcErrors(async (call, callback) => {
 	const { email, repo } = call.request;
-	const result = subscribe(email, repo);
-
-	if (!result.ok) {
-		const codeMap = {
-			[SubscribeError.MISSING_FIELDS]: status.INVALID_ARGUMENT,
-			[SubscribeError.INVALID_EMAIL]: status.INVALID_ARGUMENT,
-			[SubscribeError.INVALID_REPO_FORMAT]: status.INVALID_ARGUMENT,
-			[SubscribeError.REPO_NOT_FOUND]: status.NOT_FOUND,
-			[SubscribeError.RATE_LIMITED]: status.RESOURCE_EXHAUSTED,
-			[SubscribeError.ALREADY_EXISTS]: status.ALREADY_EXISTS,
-			[SubscribeError.INTERNAL]: status.INTERNAL,
-		};
-		return callback({
-			code: codeMap[result.code] ?? status.INTERNAL,
-			message: result.error,
-		});
-	}
-
+	const result = await subscribe(email, repo);
 	callback(null, { message: result.message });
-}
+});
 
-function Confirm(call, callback) {
+const Confirm = catchGrpcErrors((call, callback) => {
 	const { token } = call.request;
 	const result = confirm(token);
-
-	if (!result.ok) {
-		const codeMap = {
-			[ConfirmError.MISSING_TOKEN]: status.INVALID_ARGUMENT,
-			[ConfirmError.NOT_FOUND]: status.NOT_FOUND,
-		};
-		return callback({
-			code: codeMap[result.code] ?? status.INVALID_ARGUMENT,
-			message: result.error,
-		});
-	}
-
 	callback(null, { message: result.message });
-}
+});
 
-function Unsubscribe(call, callback) {
+const Unsubscribe = catchGrpcErrors((call, callback) => {
 	const { token } = call.request;
 	const result = unsubscribe(token);
-
-	if (!result.ok) {
-		const codeMap = {
-			[UnsubscribeError.MISSING_TOKEN]: status.INVALID_ARGUMENT,
-			[UnsubscribeError.NOT_FOUND]: status.NOT_FOUND,
-		};
-		return callback({
-			code: codeMap[result.code] ?? status.INVALID_ARGUMENT,
-			message: result.error,
-		});
-	}
-
 	callback(null, { message: result.message });
-}
+});
 
-function GetSubscriptions(call, callback) {
+const GetSubscriptions = catchGrpcErrors((call, callback) => {
 	const { email } = call.request;
 	const result = getSubscriptions(email);
-
-	if (!result.ok) {
-		const codeMap = {
-			[GetSubscriptionsError.INVALID_EMAIL]: status.INVALID_ARGUMENT,
-		};
-		return callback({
-			code: codeMap[result.code] ?? status.INVALID_ARGUMENT,
-			message: result.error,
-		});
-	}
-
 	callback(null, {
 		subscriptions: result.subscriptions.map((s) => ({
 			email: s.email,
@@ -112,7 +52,7 @@ function GetSubscriptions(call, callback) {
 			last_seen_tag: s.last_seen_tag || "",
 		})),
 	});
-}
+});
 
 export function startGrpcServer() {
 	const server = new Server();

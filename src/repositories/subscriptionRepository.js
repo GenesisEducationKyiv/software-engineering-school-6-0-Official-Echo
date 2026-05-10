@@ -7,6 +7,7 @@ import {
 import {
 	CONFIRM_SUBSCRIPTION_BY_TOKEN,
 	DELETE_SUBSCRIPTION_BY_TOKEN,
+	FIND_SUBS_BY_TOKEN,
 	GET_SUBSCRIPTIONS_BY_EMAIL,
 	INSERT_SUBSCRIPTION,
 } from "../db/queries/subscription.js";
@@ -18,13 +19,11 @@ export function insertSubscription(email, repo, confirmToken, unsubscribeToken) 
 }
 
 export function findByConfirmToken(token) {
-	return getDb().prepare(CONFIRM_SUBSCRIPTION_BY_TOKEN).get(token);
+	return getDb().prepare(FIND_SUBS_BY_TOKEN).get(token);
 }
 
 export function confirmSubscription(token) {
-	getDb()
-		.prepare("UPDATE subscriptions SET confirmed = 1 WHERE confirm_token = ?")
-		.run(token);
+	getDb().prepare(CONFIRM_SUBSCRIPTION_BY_TOKEN).run(token);
 }
 
 export function deleteByUnsubscribeToken(token) {

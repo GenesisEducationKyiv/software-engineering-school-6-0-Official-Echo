@@ -1,40 +1,40 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("../src/services/github", () => ({
+vi.mock("../src/services/github.js", () => ({
 	getLatestRelease: vi.fn(),
 }));
 
-vi.mock("../src/services/notifier", () => ({
+vi.mock("../src/services/notifier.js", () => ({
 	sendReleaseNotification: vi.fn(),
 }));
 
-vi.mock("../src/db/database", () => ({}));
+vi.mock("../src/repositories/subscriptionRepository.js", () => ({
+	findConfirmedSubscribersByRepo: vi.fn(),
+	updateLastSeenTag: vi.fn(),
+}));
 
-import { getLatestRelease } from "../src/services/github";
-import { sendReleaseNotification } from "../src/services/notifier";
-import { checkRepo } from "../src/services/scanner";
+vi.mock("../src/services/metrics.js", () => ({
+	notificationsSentTotal: { inc: vi.fn() },
+	scannerRunsTotal: { inc: vi.fn() },
+}));
+
+import {
+	findConfirmedSubscribersByRepo,
+	updateLastSeenTag,
+} from "../src/repositories/subscriptionRepository.js";
+import { getLatestRelease } from "../src/services/github.js";
+import { sendReleaseNotification } from "../src/services/notifier.js";
+import { checkRepo } from "../src/services/scanner.js";
 
 beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-/**
- * Builds a minimal mock DB for a given set of subscribers.
- */
-function makeDb(subscribers = []) {
-	const run = vi.fn().mockReturnValue({ changes: 1 });
-	const all = vi.fn().mockReturnValue(subscribers);
-	const prepare = vi.fn(() => ({ run, all }));
-	return { prepare, _run: run, _all: all };
-}
-
 describe("checkRepo", () => {
 	test("does nothing when no releases exist", async () => {
 		getLatestRelease.mockResolvedValue(null);
 
-		const db = makeDb();
-
-		await checkRepo(db, "some/repo");
+		await checkRepo("some/repo");
 
 		expect(sendReleaseNotification).not.toHaveBeenCalled();
 	});
@@ -46,17 +46,16 @@ describe("checkRepo", () => {
 			{
 				id: 1,
 				email: "a@test.com",
-				unsubscribe_token: "tok1",
+				unsubscribe_token: "tokA",
 				last_seen_tag: null,
 			},
 		];
+		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
 
-		const db = makeDb(subscribers);
-
-		await checkRepo(db, "first/check");
+		await checkRepo("first/check");
 
 		expect(sendReleaseNotification).not.toHaveBeenCalled();
-		expect(db._run).toHaveBeenCalledWith("v1.0.0", 1);
+		expect(updateLastSeenTag).toHaveBeenCalledWith(1, "v1.0.0");
 	});
 
 	test("does not notify when tag is unchanged", async () => {
@@ -66,14 +65,13 @@ describe("checkRepo", () => {
 			{
 				id: 1,
 				email: "a@test.com",
-				unsubscribe_token: "tok1",
+				unsubscribe_token: "tokA",
 				last_seen_tag: "v1.0.0",
 			},
 		];
+		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
 
-		const db = makeDb(subscribers);
-
-		await checkRepo(db, "same/tag");
+		await checkRepo("same/tag");
 
 		expect(sendReleaseNotification).not.toHaveBeenCalled();
 	});
@@ -96,10 +94,9 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
+		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
 
-		const db = makeDb(subscribers);
-
-		await checkRepo(db, "new/release");
+		await checkRepo("new/release");
 
 		expect(sendReleaseNotification).toHaveBeenCalledTimes(2);
 
@@ -117,8 +114,8 @@ describe("checkRepo", () => {
 			unsubscribeToken: "tokB",
 		});
 
-		expect(db._run).toHaveBeenCalledWith("v2.0.0", 1);
-		expect(db._run).toHaveBeenCalledWith("v2.0.0", 2);
+		expect(updateLastSeenTag).toHaveBeenCalledWith(1, "v2.0.0");
+		expect(updateLastSeenTag).toHaveBeenCalledWith(2, "v2.0.0");
 	});
 
 	test("continues notifying other subscribers if one email fails", async () => {
@@ -131,21 +128,20 @@ describe("checkRepo", () => {
 		const subscribers = [
 			{
 				id: 1,
-				email: "fail@test.com",
-				unsubscribe_token: "tok1",
+				email: "a@test.com",
+				unsubscribe_token: "tokA",
 				last_seen_tag: "v2.0.0",
 			},
 			{
 				id: 2,
-				email: "ok@test.com",
-				unsubscribe_token: "tok2",
+				email: "b@test.com",
+				unsubscribe_token: "tokB",
 				last_seen_tag: "v2.0.0",
 			},
 		];
+		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
 
-		const db = makeDb(subscribers);
-
-		await checkRepo(db, "mixed/results");
+		await checkRepo("mixed/results");
 
 		expect(sendReleaseNotification).toHaveBeenCalledTimes(2);
 	});

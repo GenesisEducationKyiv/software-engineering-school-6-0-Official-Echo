@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>GitHub Release Notifier</title>
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+
+			body {
+				font-family: "Segoe UI", sans-serif;
+				background: #0d1117;
+				color: #e6edf3;
+				min-height: 100vh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 2rem;
+			}
+
+			.card {
+				background: #161b22;
+				border: 1px solid #30363d;
+				border-radius: 12px;
+				padding: 2.5rem;
+				width: 100%;
+				max-width: 480px;
+			}
+
+			.logo {
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+				margin-bottom: 1.75rem;
+			}
+
+			.logo svg {
+				color: #f0f6fc;
+			}
+
+			h1 {
+				font-size: 1.25rem;
+				font-weight: 600;
+				color: #f0f6fc;
+			}
+
+			p.subtitle {
+				font-size: 0.875rem;
+				color: #8b949e;
+				margin-bottom: 1.75rem;
+			}
+
+			label {
+				display: block;
+				font-size: 0.8rem;
+				font-weight: 500;
+				color: #8b949e;
+				margin-bottom: 0.4rem;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+			}
+
+			input {
+				width: 100%;
+				background: #0d1117;
+				border: 1px solid #30363d;
+				border-radius: 6px;
+				color: #e6edf3;
+				font-size: 0.95rem;
+				padding: 0.65rem 0.85rem;
+				margin-bottom: 1.1rem;
+				transition: border-color 0.15s;
+				outline: none;
+			}
+
+			input:focus {
+				border-color: #388bfd;
+			}
+
+			input::placeholder {
+				color: #484f58;
+			}
+
+			button {
+				width: 100%;
+				background: #238636;
+				border: 1px solid #2ea043;
+				border-radius: 6px;
+				color: #fff;
+				font-size: 0.95rem;
+				font-weight: 600;
+				padding: 0.7rem;
+				cursor: pointer;
+				transition: background 0.15s;
+			}
+
+			button:hover {
+				background: #2ea043;
+			}
+
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+
+			.message {
+				margin-top: 1.25rem;
+				padding: 0.85rem 1rem;
+				border-radius: 6px;
+				font-size: 0.875rem;
+				display: none;
+			}
+
+			.message.success {
+				background: #0f2c1a;
+				border: 1px solid #2ea043;
+				color: #3fb950;
+				display: block;
+			}
+
+			.message.error {
+				background: #2d1117;
+				border: 1px solid #f85149;
+				color: #f85149;
+				display: block;
+			}
+
+			.divider {
+				border: none;
+				border-top: 1px solid #21262d;
+				margin: 2rem 0 1.5rem;
+			}
+
+			h2 {
+				font-size: 0.95rem;
+				font-weight: 600;
+				color: #8b949e;
+				margin-bottom: 1rem;
+			}
+
+			.sub-list {
+				list-style: none;
+				display: flex;
+				flex-direction: column;
+				gap: 0.5rem;
+			}
+
+			.sub-item {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				background: #0d1117;
+				border: 1px solid #21262d;
+				border-radius: 6px;
+				padding: 0.6rem 0.85rem;
+				font-size: 0.875rem;
+			}
+
+			.sub-item .repo {
+				font-weight: 500;
+				color: #58a6ff;
+			}
+
+			.badge {
+				font-size: 0.7rem;
+				padding: 0.15rem 0.5rem;
+				border-radius: 99px;
+				font-weight: 600;
+			}
+
+			.badge.confirmed {
+				background: #0f2c1a;
+				color: #3fb950;
+				border: 1px solid #2ea043;
+			}
+
+			.badge.pending {
+				background: #1a1600;
+				color: #d29922;
+				border: 1px solid #9e6a03;
+			}
+
+			.empty {
+				color: #484f58;
+				font-size: 0.875rem;
+				text-align: center;
+				padding: 1rem 0;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="card">
+			<div class="logo">
+				<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+					<path
+						d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+					/>
+				</svg>
+				<h1>Release Notifier</h1>
+			</div>
+
+			<p class="subtitle">
+				Get an email whenever a GitHub repository ships a new release.
+			</p>
+
+			<form id="subscribeForm">
+				<label for="email">Email address</label>
+				<input
+					type="email"
+					id="email"
+					placeholder="you@example.com"
+					required
+				/>
+
+				<label for="repo">Repository</label>
+				<input
+					type="text"
+					id="repo"
+					placeholder="owner/repo (e.g. denoland/deno)"
+					required
+				/>
+
+				<button type="submit" id="submitBtn">Subscribe</button>
+			</form>
+
+			<div id="message" class="message"></div>
+
+			<hr class="divider" />
+
+			<h2>Your subscriptions</h2>
+			<ul class="sub-list" id="subList">
+				<li class="empty" id="subEmpty">
+					Enter your email and click Subscribe to see your subscriptions.
+				</li>
+			</ul>
+		</div>
+
+		<script>
+			const form = document.getElementById("subscribeForm");
+			const emailInput = document.getElementById("email");
+			const repoInput = document.getElementById("repo");
+			const btn = document.getElementById("submitBtn");
+			const msg = document.getElementById("message");
+			const subList = document.getElementById("subList");
+			const subEmpty = document.getElementById("subEmpty");
+
+			function showMessage(text, type) {
+				msg.textContent = text;
+				msg.className = `message ${type}`;
+			}
+
+			async function loadSubscriptions(email) {
+				try {
+					const res = await fetch(
+						`/api/subscriptions?email=${encodeURIComponent(email)}`
+					);
+					if (!res.ok) return;
+					const data = await res.json();
+					renderSubscriptions(data);
+				} catch {}
+			}
+
+			function renderSubscriptions(subs) {
+				subList.innerHTML = "";
+				if (!subs.length) {
+					subList.innerHTML =
+						'<li class="empty">No subscriptions found for this email.</li>';
+					return;
+				}
+				subs.forEach(({ repo, confirmed }) => {
+					const li = document.createElement("li");
+					li.className = "sub-item";
+					li.innerHTML = `
+          <span class="repo">${repo}</span>
+          <span class="badge ${confirmed ? "confirmed" : "pending"}">${
+				confirmed ? "Confirmed" : "Pending"
+			}</span>
+        `;
+					subList.appendChild(li);
+				});
+			}
+
+			emailInput.addEventListener("blur", () => {
+				const email = emailInput.value.trim();
+				if (email && email.includes("@")) loadSubscriptions(email);
+			});
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				const email = emailInput.value.trim();
+				const repo = repoInput.value.trim();
+
+				btn.disabled = true;
+				btn.textContent = "Subscribing…";
+				msg.className = "message";
+
+				try {
+					const res = await fetch("/api/subscribe", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ email, repo }),
+					});
+					const data = await res.json();
+
+					if (res.ok) {
+						showMessage(
+							"Check your email to confirm the subscription!",
+							"success"
+						);
+						repoInput.value = "";
+						loadSubscriptions(email);
+					} else {
+						showMessage(data.error || "Something went wrong.", "error");
+					}
+				} catch {
+					showMessage("Network error. Please try again.", "error");
+				} finally {
+					btn.disabled = false;
+					btn.textContent = "Subscribe";
+				}
+			});
+		</script>
+	</body>
+</html>

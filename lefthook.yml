@@ -1,0 +1,16 @@
+pre-push:
+  jobs:
+    - name: packages audit
+      run: pnpm audit --audit-level=high
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.js"
+      run: pnpm exec eslint --fix {staged_files}
+      stage_fixed: true
+    format:
+      glob: "*.{js,json,md}"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true

@@ -1,3 +1,4 @@
+import { StatusCodes } from "http-status-codes";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("axios");
@@ -61,29 +62,36 @@ describe("GitHub API (mocked)", () => {
 			});
 
 			await expect(github.repoExists("x/y")).rejects.toMatchObject({
-				status: 429,
+				httpStatus: StatusCodes.TOO_MANY_REQUESTS,
+				retryAfter: 30,
 			});
 		});
 	});
 
 	describe("getLatestRelease", () => {
-		test("returns tag_name on 200", async () => {
+		test("returns tag_name on ok", async () => {
 			mockGet.mockResolvedValue({ data: { tag_name: "v1.2.3" } });
 			expect(await github.getLatestRelease("denoland/deno")).toBe("v1.2.3");
 		});
 
-		test("returns null for 404", async () => {
-			mockGet.mockRejectedValue({ response: { status: 404 } });
+		test("returns null for not found", async () => {
+			mockGet.mockRejectedValue({
+				response: { status: StatusCodes.NOT_FOUND },
+			});
 			expect(await github.getLatestRelease("x/y")).toBeNull();
 		});
 
-		test("throws with status 429", async () => {
+		test("throws with too many requests", async () => {
 			mockGet.mockRejectedValue({
-				response: { status: 429, headers: { "retry-after": "60" } },
+				response: {
+					status: StatusCodes.TOO_MANY_REQUESTS,
+					headers: { "retry-after": "60" },
+				},
 			});
 
 			await expect(github.getLatestRelease("x/y")).rejects.toMatchObject({
-				status: 429,
+				httpStatus: StatusCodes.TOO_MANY_REQUESTS,
+				retryAfter: 60,
 			});
 		});
 	});

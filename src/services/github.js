@@ -1,5 +1,7 @@
 import axios from "axios";
+import { StatusCodes } from "http-status-codes";
 
+import { RateLimitError } from "../errors/index.js";
 import { cacheGet, cacheSet } from "./cache.js";
 
 const githubClient = axios.create({
@@ -17,16 +19,10 @@ function isValidRepoFormat(repo) {
 	return /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repo);
 }
 
-function makeRateLimitError(headers = {}) {
-	const e = new Error("GitHub API rate limit exceeded");
-	e.status = 429;
-	e.retryAfter = headers["retry-after"] || 60;
-	return e;
-}
-
 /**
  * Returns true if repo exists, false if 404.
  * Caches positive results for TTL.
+ * @throws { RateLimitError }
  */
 async function repoExists(repo) {
 	const key = `repo:exists:${repo}`;
@@ -38,12 +34,16 @@ async function repoExists(repo) {
 		await cacheSet(key, true);
 		return true;
 	} catch (err) {
-		if (err.response?.status === 404) {
+		if (err.response?.status === StatusCodes.NOT_FOUND) {
 			await cacheSet(key, false);
 			return false;
 		}
-		if (err.response?.status === 429) {
-			throw makeRateLimitError(err.response.headers);
+		if (err.response?.status === StatusCodes.TOO_MANY_REQUESTS) {
+			throw new RateLimitError(
+				"GitHub rate limit exceeded",
+				"RATE_LIMITED",
+				Number(err.response.headers["retry-after"]) || 60
+			);
 		}
 		throw err;
 	}
@@ -52,6 +52,7 @@ async function repoExists(repo) {
 /**
  * Returns latest release tag or null.
  * Caches result for TTL.
+ * @throws { RateLimitError }
  */
 async function getLatestRelease(repo) {
 	const key = `repo:release:${repo}`;
@@ -64,9 +65,13 @@ async function getLatestRelease(repo) {
 		await cacheSet(key, tag);
 		return tag;
 	} catch (err) {
-		if (err.response?.status === 404) return null;
-		if (err.response?.status === 429) {
-			throw makeRateLimitError(err.response.headers);
+		if (err.response?.status === StatusCodes.NOT_FOUND) return null;
+		if (err.response?.status === StatusCodes.TOO_MANY_REQUESTS) {
+			throw new RateLimitError(
+				"GitHub rate limit exceeded",
+				"RATE_LIMITED",
+				Number(err.response.headers["retry-after"]) || 60
+			);
 		}
 		throw err;
 	}

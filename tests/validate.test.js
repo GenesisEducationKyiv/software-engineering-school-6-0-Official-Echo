@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { validate, validateEmail } from "../src/middleware/validate";
+import { ValidationError } from "../src/errors/index.js";
+import { validate, validateEmail } from "../src/middleware/validate.js";
 
 function mockRes() {
 	const res = {};
@@ -12,46 +13,31 @@ function mockRes() {
 describe("validate middleware", () => {
 	test("calls next() when all fields present", () => {
 		const req = { body: { email: "a@b.com", repo: "x/y" } };
-		const res = mockRes();
 		const next = vi.fn();
-
-		validate(["email", "repo"])(req, res, next);
-
+		validate(["email", "repo"])(req, mockRes(), next);
 		expect(next).toHaveBeenCalled();
-		expect(res.status).not.toHaveBeenCalled();
 	});
 
-	test("returns 400 when field is missing", () => {
+	test("throws when field is missing", () => {
 		const req = { body: { email: "a@b.com" } };
-		const res = mockRes();
-		const next = vi.fn();
-
-		validate(["email", "repo"])(req, res, next);
-
-		expect(res.status).toHaveBeenCalledWith(400);
-		expect(next).not.toHaveBeenCalled();
+		expect(() => validate(["email", "repo"])(req, mockRes(), vi.fn())).toThrow(
+			ValidationError
+		);
 	});
 });
 
 describe("validateEmail middleware", () => {
 	test("calls next() for valid email", () => {
 		const req = { body: { email: "user@example.com" } };
-		const res = mockRes();
 		const next = vi.fn();
-
-		validateEmail(req, res, next);
-
-		expect(next).toHaveBeenCalled();
+		validateEmail(req, mockRes(), next);
+		expect(next).toHaveBeenCalledWith();
 	});
 
-	test("returns 400 for invalid email", () => {
+	test("throws for invalid email", () => {
 		const req = { body: { email: "not-an-email" } };
-		const res = mockRes();
-		const next = vi.fn();
-
-		validateEmail(req, res, next);
-
-		expect(res.status).toHaveBeenCalledWith(400);
-		expect(next).not.toHaveBeenCalled();
+		expect(() => validateEmail(req, mockRes(), vi.fn())).toThrow(
+			ValidationError
+		);
 	});
 });

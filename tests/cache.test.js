@@ -2,9 +2,6 @@ import { describe, expect, test, vi } from "vitest";
 
 import { cacheDel, cacheGet, cacheSet } from "../src/services/cache";
 
-// Test the cache logic in isolation with a simple in-memory store
-// We test the public interface: cacheGet/cacheSet/cacheDel
-
 describe("cache service (unit logic)", () => {
 	function makeInMemoryCache() {
 		const store = new Map();

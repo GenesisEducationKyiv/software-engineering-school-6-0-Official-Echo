@@ -1,14 +1,19 @@
+import { ValidityError } from "../errors/constants/validate.js";
+import { ValidationError } from "../errors/index.js";
+
 /**
  * Validates that required fields are present in req.body.
  * Usage: validate(['email', 'repo'])
+ * @throws { ValidationError }
  */
 function validate(fields) {
-	return (req, res, next) => {
+	return (req, _res, next) => {
 		const missing = fields.filter((f) => !req.body[f]);
 		if (missing.length > 0) {
-			return res.status(400).json({
-				error: `Missing required fields: ${missing.join(", ")}`,
-			});
+			throw new ValidationError(
+				`Missing required fields: ${missing.join(", ")}`,
+				ValidityError.MISSING_FIELDS
+			);
 		}
 		next();
 	};
@@ -16,10 +21,14 @@ function validate(fields) {
 
 /**
  * Validates email format in req.body.email.
+ * @throws { ValidationError }
  */
-function validateEmail(req, res, next) {
+function validateEmail(req, _res, next) {
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
-		return res.status(400).json({ error: "Invalid email address" });
+		throw new ValidationError(
+			"Invalid email address",
+			ValidityError.INVALID_EMAIL_ADDRESS
+		);
 	}
 	next();
 }

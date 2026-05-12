@@ -1,0 +1,4 @@
+export const ValidityError = Object.freeze({
+	MISSING_FIELDS: "MISSING_FIELDS",
+	INVALID_EMAIL_ADDRESS: "INVALID_EMAIL_ADDRESS",
+});

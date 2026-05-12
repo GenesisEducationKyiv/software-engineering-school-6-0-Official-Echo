@@ -3,33 +3,27 @@ import Redis from "ioredis";
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const TTL = 60 * 10;
 
-let client = null;
+let redis;
 let connected = false;
 
 function getRedis() {
-	if (!client) {
-		client = new Redis(REDIS_URL, {
+	if (!redis) {
+		redis = new Redis(REDIS_URL, {
 			lazyConnect: true,
 			enableOfflineQueue: false,
-			maxRetriesPerRequest: 1,
 		});
-
-		client.on("connect", () => {
+		redis.on("ready", () => {
 			connected = true;
-			console.log("[Redis] Connected");
 		});
-		client.on("error", (err) => {
+		redis.on("error", () => {
 			connected = false;
-			console.warn("[Redis] Unavailable:", err.message);
 		});
-
-		client.connect().catch(() => {});
 	}
-	return client;
+	return redis;
 }
 
 /**
- * Gets a cached value. Returns null if missing or Redis unavailable.
+ * Gets a cached value by key. Returns null if unavailable or missing.
  */
 async function cacheGet(key) {
 	try {
@@ -43,7 +37,7 @@ async function cacheGet(key) {
 }
 
 /**
- * Sets a value with TTL. Silently fails if Redis is unavailable.
+ * Sets a cached value with a TTL. Silently fails if Redis is unavailable.
  */
 async function cacheSet(key, value) {
 	try {
@@ -66,4 +60,4 @@ async function cacheDel(key) {
 	}
 }
 
-export { cacheDel, cacheGet, cacheSet, getRedis };
+export { cacheDel, cacheGet, cacheSet };

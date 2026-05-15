@@ -6,7 +6,7 @@ import { ValidationError } from "../errors/index.js";
  * Usage: validate(['email', 'repo'])
  * @throws { ValidationError }
  */
-function validate(fields) {
+export function validate(fields) {
 	return (req, _res, next) => {
 		const missing = fields.filter((f) => !req.body[f]);
 		if (missing.length > 0) {
@@ -23,7 +23,7 @@ function validate(fields) {
  * Validates email format in req.body.email.
  * @throws { ValidationError }
  */
-function validateEmail(req, _res, next) {
+export function validateEmail(req, _res, next) {
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
 		throw new ValidationError(
 			"Invalid email address",
@@ -32,5 +32,3 @@ function validateEmail(req, _res, next) {
 	}
 	next();
 }
-
-export { validate, validateEmail };

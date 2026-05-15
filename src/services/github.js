@@ -15,7 +15,7 @@ const githubClient = axios.create({
 	timeout: 10000,
 });
 
-function isValidRepoFormat(repo) {
+export function isValidRepoFormat(repo) {
 	return /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repo);
 }
 
@@ -24,7 +24,7 @@ function isValidRepoFormat(repo) {
  * Caches positive results for TTL.
  * @throws { RateLimitError }
  */
-async function repoExists(repo) {
+export async function repoExists(repo) {
 	const key = `repo:exists:${repo}`;
 	const cached = await cacheGet(key);
 	if (cached !== null) return cached;
@@ -54,7 +54,7 @@ async function repoExists(repo) {
  * Caches result for TTL.
  * @throws { RateLimitError }
  */
-async function getLatestRelease(repo) {
+export async function getLatestRelease(repo) {
 	const key = `repo:release:${repo}`;
 	const cached = await cacheGet(key);
 	if (cached !== null) return cached;
@@ -76,5 +76,3 @@ async function getLatestRelease(repo) {
 		throw err;
 	}
 }
-
-export { getLatestRelease, isValidRepoFormat, repoExists };

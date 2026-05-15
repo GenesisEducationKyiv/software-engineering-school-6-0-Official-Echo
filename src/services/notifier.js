@@ -18,7 +18,7 @@ const FROM = process.env.SMTP_FROM || "noreply@github-notifier.dev";
 /**
  * Sends a subscription confirmation email with a confirm link.
  */
-async function sendConfirmationEmail({ email, repo, confirmToken }) {
+export async function sendConfirmationEmail({ email, repo, confirmToken }) {
 	const transport = createTransport();
 	const confirmUrl = `${BASE_URL}/api/confirm/${confirmToken}`;
 
@@ -39,7 +39,12 @@ async function sendConfirmationEmail({ email, repo, confirmToken }) {
 /**
  * Sends a new-release notification email.
  */
-async function sendReleaseNotification({ email, repo, tag, unsubscribeToken }) {
+export async function sendReleaseNotification({
+	email,
+	repo,
+	tag,
+	unsubscribeToken,
+}) {
 	const transport = createTransport();
 	const releaseUrl = `https://github.com/${repo}/releases/tag/${tag}`;
 	const unsubUrl = `${BASE_URL}/api/unsubscribe/${unsubscribeToken}`;
@@ -58,5 +63,3 @@ async function sendReleaseNotification({ email, repo, tag, unsubscribeToken }) {
     `,
 	});
 }
-
-export { sendConfirmationEmail, sendReleaseNotification };

@@ -25,7 +25,7 @@ function getRedis() {
 /**
  * Gets a cached value by key. Returns null if unavailable or missing.
  */
-async function cacheGet(key) {
+export async function cacheGet(key) {
 	try {
 		if (!connected) return null;
 		const val = await getRedis().get(key);
@@ -39,7 +39,7 @@ async function cacheGet(key) {
 /**
  * Sets a cached value with a TTL. Silently fails if Redis is unavailable.
  */
-async function cacheSet(key, value) {
+export async function cacheSet(key, value) {
 	try {
 		if (!connected) return;
 		await getRedis().set(key, JSON.stringify(value), "EX", TTL);
@@ -51,7 +51,7 @@ async function cacheSet(key, value) {
 /**
  * Deletes a cached value. Silently fails if Redis is unavailable.
  */
-async function cacheDel(key) {
+export async function cacheDel(key) {
 	try {
 		if (!connected) return;
 		await getRedis().del(key);
@@ -59,5 +59,3 @@ async function cacheDel(key) {
 		console.warn("[Redis] cacheDel failed for key:", key, "-", err.message);
 	}
 }
-
-export { cacheDel, cacheGet, cacheSet };

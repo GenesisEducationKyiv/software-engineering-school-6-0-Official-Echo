@@ -9,7 +9,7 @@ const DB_PATH =
 
 let db;
 
-function getDb() {
+export function getDb() {
 	if (!db) {
 		mkdirSync(dirname(DB_PATH), { recursive: true });
 		db = new Database(DB_PATH);
@@ -19,7 +19,7 @@ function getDb() {
 	return db;
 }
 
-function runMigrations() {
+export function runMigrations() {
 	const database = getDb();
 
 	database.exec(CREATE_TABLE);
@@ -27,11 +27,9 @@ function runMigrations() {
 	console.log("[DB] Migrations applied");
 }
 
-function _resetDb() {
+export function _resetDb() {
 	if (db) {
 		db.close();
 		db = null;
 	}
 }
-
-export { _resetDb, getDb, runMigrations };

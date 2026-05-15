@@ -6,17 +6,17 @@ import {
 	Registry,
 } from "prom-client";
 
-const register = new Registry();
+export const register = new Registry();
 collectDefaultMetrics({ register });
 
-const httpRequestsTotal = new Counter({
+export const httpRequestsTotal = new Counter({
 	name: "http_requests_total",
 	help: "Total number of HTTP requests",
 	labelNames: ["method", "route", "status"],
 	registers: [register],
 });
 
-const httpRequestDuration = new Histogram({
+export const httpRequestDuration = new Histogram({
 	name: "http_request_duration_seconds",
 	help: "HTTP request duration in seconds",
 	labelNames: ["method", "route", "status"],
@@ -24,25 +24,25 @@ const httpRequestDuration = new Histogram({
 	registers: [register],
 });
 
-const subscriptionsTotal = new Gauge({
+export const subscriptionsTotal = new Gauge({
 	name: "subscriptions_total",
 	help: "Total number of subscriptions in DB",
 	registers: [register],
 });
 
-const confirmedSubscriptionsTotal = new Gauge({
+export const confirmedSubscriptionsTotal = new Gauge({
 	name: "confirmed_subscriptions_total",
 	help: "Number of confirmed subscriptions",
 	registers: [register],
 });
 
-const notificationsSentTotal = new Counter({
+export const notificationsSentTotal = new Counter({
 	name: "notifications_sent_total",
 	help: "Total release notification emails sent",
 	registers: [register],
 });
 
-const scannerRunsTotal = new Counter({
+export const scannerRunsTotal = new Counter({
 	name: "scanner_runs_total",
 	help: "Total number of scanner cron runs",
 	registers: [register],
@@ -51,7 +51,7 @@ const scannerRunsTotal = new Counter({
 /**
  * Express middleware that records request count and duration.
  */
-function metricsMiddleware(req, res, next) {
+export function metricsMiddleware(req, res, next) {
 	const end = httpRequestDuration.startTimer();
 	res.on("finish", () => {
 		const route = req.route?.path || req.path;
@@ -61,12 +61,3 @@ function metricsMiddleware(req, res, next) {
 	});
 	next();
 }
-
-export {
-	confirmedSubscriptionsTotal,
-	metricsMiddleware,
-	notificationsSentTotal,
-	register,
-	scannerRunsTotal,
-	subscriptionsTotal,
-};

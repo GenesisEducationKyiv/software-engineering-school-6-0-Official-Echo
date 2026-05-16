@@ -2,7 +2,7 @@ import { StatusCodes } from "http-status-codes";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("axios");
-vi.mock("../src/services/cache.js", () => ({
+vi.mock("#src/services/cache.js", () => ({
 	cacheGet: vi.fn().mockResolvedValue(null),
 	cacheSet: vi.fn().mockResolvedValue(undefined),
 }));
@@ -18,7 +18,7 @@ beforeEach(async () => {
 	const { default: axios } = await import("axios");
 	axios.create = vi.fn().mockReturnValue({ get: mockGet });
 
-	github = await import("../src/services/github.js");
+	github = await import("#src/services/github.js");
 });
 
 describe("GitHub API (mocked)", () => {

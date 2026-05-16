@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { cacheDel, cacheGet, cacheSet } from "../src/services/cache";
+import { cacheDel, cacheGet, cacheSet } from "#src/services/cache.js";
 
 describe("cache service (unit logic)", () => {
 	function makeInMemoryCache() {

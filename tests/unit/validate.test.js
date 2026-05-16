@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import { ValidationError } from "../src/errors/index.js";
+import { ValidationError } from "#src/errors/index.js";
 import {
 	validateConfirmToken,
 	validateEmailQuery,
 	validateSubscribeInput,
 	validateUnsubscribeToken,
-} from "../src/validation/index.js";
+} from "#src/validation/index.js";
 
 describe("validateSubscribeInput", () => {
 	test("passes with valid email and repo", () => {

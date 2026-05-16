@@ -4,6 +4,9 @@
 	"description": "Subscribe to GitHub release email notifications",
 	"main": "src/index.js",
 	"type": "module",
+	"imports": {
+		"#src/*": "./src/*"
+	},
 	"scripts": {
 		"start": "node src/index.js",
 		"dev": "nodemon src/index.js",

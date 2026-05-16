@@ -21,7 +21,7 @@ describe("apiKeyAuth middleware", () => {
 
 	test("calls next() when API_KEY env var is not set (auth disabled)", async () => {
 		delete process.env.API_KEY;
-		const { apiKeyAuth } = await import("../src/middleware/auth.js");
+		const { apiKeyAuth } = await import("#src/middleware/auth.js");
 		const next = vi.fn();
 		apiKeyAuth({ headers: {} }, mockRes(), next);
 		expect(next).toHaveBeenCalled();
@@ -29,8 +29,8 @@ describe("apiKeyAuth middleware", () => {
 
 	test("returns unauthorized when header is missing", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth } = await import("../src/middleware/auth.js");
-		const { UnauthorizedError } = await import("../src/errors/index.js");
+		const { apiKeyAuth } = await import("#src/middleware/auth.js");
+		const { UnauthorizedError } = await import("#src/errors/index.js");
 		const res = mockRes();
 		const next = vi.fn();
 		apiKeyAuth({ headers: {} }, res, next);
@@ -39,8 +39,8 @@ describe("apiKeyAuth middleware", () => {
 
 	test("returns forbidden when key is wrong", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth } = await import("../src/middleware/auth.js");
-		const { ForbiddenError } = await import("../src/errors/index.js");
+		const { apiKeyAuth } = await import("#src/middleware/auth.js");
+		const { ForbiddenError } = await import("#src/errors/index.js");
 		const res = mockRes();
 		const next = vi.fn();
 		apiKeyAuth({ headers: { "x-api-key": "wrongkey" } }, res, next);
@@ -49,7 +49,7 @@ describe("apiKeyAuth middleware", () => {
 
 	test("calls next() when key matches", async () => {
 		process.env.API_KEY = "secret123";
-		const { apiKeyAuth } = await import("../src/middleware/auth.js");
+		const { apiKeyAuth } = await import("#src/middleware/auth.js");
 		const next = vi.fn();
 		apiKeyAuth({ headers: { "x-api-key": "secret123" } }, mockRes(), next);
 		expect(next).toHaveBeenCalled();

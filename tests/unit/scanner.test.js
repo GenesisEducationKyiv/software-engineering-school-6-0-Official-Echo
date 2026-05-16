@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("../src/services/github.js", () => ({
+vi.mock("#src/services/github.js", () => ({
 	getLatestRelease: vi.fn(),
 }));
 
-vi.mock("../src/services/notifier.js", () => ({
+vi.mock("#src/services/notifier.js", () => ({
 	sendReleaseNotification: vi.fn(),
 }));
 
-vi.mock("../src/repositories/subscriptionRepository.js", () => ({
+vi.mock("#src/repositories/subscriptionRepository.js", () => ({
 	findConfirmedSubscribersByRepo: vi.fn(),
 	updateLastSeenTag: vi.fn(),
 }));
 
-vi.mock("../src/services/metrics.js", () => ({
+vi.mock("#src/services/metrics.js", () => ({
 	notificationsSentTotal: { inc: vi.fn() },
 	scannerRunsTotal: { inc: vi.fn() },
 }));

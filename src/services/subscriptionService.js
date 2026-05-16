@@ -22,8 +22,10 @@ import { sendConfirmationEmail } from "./notifier.js";
 
 /**
  * Subscribes an email to repo release notifications.
- * @returns {{ ok: true, message: string }}
- * @throws { AppError }
+ * @param {string} email
+ * @param {string} repo
+ * @returns {Promise<{ ok: true, message: string }>}
+ * @throws {AppError}
  */
 export async function subscribe(email, repo) {
 	if (!email || !repo) {
@@ -100,8 +102,9 @@ export async function subscribe(email, repo) {
 
 /**
  * Confirms a subscription by token.
- * @returns {{ ok: true, message: string, alreadyConfirmed?: boolean }}
- * @throws { AppError }
+ * @param {string} token
+ * @returns {Promise<{ ok: true, message: string, alreadyConfirmed?: boolean }>}
+ * @throws {AppError}
  */
 export function confirm(token) {
 	if (!token) {
@@ -123,7 +126,9 @@ export function confirm(token) {
 
 /**
  * Unsubscribes by token.
- * @returns {{ ok: true, message: string }}
+ * @param {string} token
+ * @returns {Promise<{ ok: true, message: string }>}
+ * @throws {AppError}
  */
 export function unsubscribe(token) {
 	if (!token) {
@@ -140,7 +145,9 @@ export function unsubscribe(token) {
 
 /**
  * Returns all subscriptions for a given email.
- * @returns {{ ok: true, subscriptions: Array }}
+ * @param {string} email
+ * @returns {Promise<{ ok: true, subscriptions: Array<{email:string; repo:string; confirmed: boolean; last_seen_tag: string|null;}> }>}
+ * @throws {AppError}
  */
 export function getSubscriptions(email) {
 	if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

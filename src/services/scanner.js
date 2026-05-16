@@ -32,7 +32,10 @@ export async function scanAllRepos() {
 		}
 	}
 }
-
+/**
+ *
+ * @param {string} repo
+ */
 export async function checkRepo(repo) {
 	const latestTag = await getLatestRelease(repo);
 	if (!latestTag) return;

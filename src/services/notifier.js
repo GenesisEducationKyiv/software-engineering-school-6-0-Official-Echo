@@ -17,6 +17,7 @@ const FROM = process.env.SMTP_FROM || "noreply@github-notifier.dev";
 
 /**
  * Sends a subscription confirmation email with a confirm link.
+ * @param {{email:string;repo:string;confirmToken:string}} Email
  */
 export async function sendConfirmationEmail({ email, repo, confirmToken }) {
 	const transport = createTransport();
@@ -38,6 +39,7 @@ export async function sendConfirmationEmail({ email, repo, confirmToken }) {
 
 /**
  * Sends a new-release notification email.
+ * @param {{email:string;repo:string;tag:string;unsubscribeToken:string}} Notification
  */
 export async function sendReleaseNotification({
 	email,

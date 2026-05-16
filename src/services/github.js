@@ -22,6 +22,7 @@ export function isValidRepoFormat(repo) {
 /**
  * Returns true if repo exists, false if 404.
  * Caches positive results for TTL.
+ * @param {string} repo
  * @throws { RateLimitError }
  */
 export async function repoExists(repo) {
@@ -52,6 +53,7 @@ export async function repoExists(repo) {
 /**
  * Returns latest release tag or null.
  * Caches result for TTL.
+ * @param {string} repo
  * @throws { RateLimitError }
  */
 export async function getLatestRelease(repo) {

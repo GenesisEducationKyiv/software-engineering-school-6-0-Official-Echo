@@ -2,6 +2,13 @@ import { StatusCodes as httpStatus } from "http-status-codes";
 import { Status as grpcStatus } from "nice-grpc-common";
 
 export class AppError extends Error {
+	/**
+	 *
+	 * @param {string} message User-facing message
+	 * @param {string} code Message for internal development
+	 * @param {number} httpStatus Error in HTTP code representation
+	 * @param {number} grpcStatus Error in gRPC code representation
+	 */
 	constructor(message, code, httpStatus, grpcStatus) {
 		super(message);
 		this.name = this.constructor.name;

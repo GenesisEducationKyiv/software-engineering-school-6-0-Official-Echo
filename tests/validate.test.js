@@ -1,43 +1,91 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 
 import { ValidationError } from "../src/errors/index.js";
-import { validate, validateEmail } from "../src/middleware/validate.js";
+import {
+	validateConfirmToken,
+	validateEmailQuery,
+	validateSubscribeInput,
+	validateUnsubscribeToken,
+} from "../src/validation/index.js";
 
-function mockRes() {
-	const res = {};
-	res.status = vi.fn().mockReturnValue(res);
-	res.json = vi.fn().mockReturnValue(res);
-	return res;
-}
-
-describe("validate middleware", () => {
-	test("calls next() when all fields present", () => {
-		const req = { body: { email: "a@b.com", repo: "x/y" } };
-		const next = vi.fn();
-		validate(["email", "repo"])(req, mockRes(), next);
-		expect(next).toHaveBeenCalled();
+describe("validateSubscribeInput", () => {
+	test("passes with valid email and repo", () => {
+		expect(() =>
+			validateSubscribeInput({ email: "a@b.com", repo: "owner/repo" })
+		).not.toThrow();
 	});
 
-	test("throws when field is missing", () => {
-		const req = { body: { email: "a@b.com" } };
-		expect(() => validate(["email", "repo"])(req, mockRes(), vi.fn())).toThrow(
+	test("throws when email is missing", () => {
+		expect(() =>
+			validateSubscribeInput({ email: "", repo: "owner/repo" })
+		).toThrow(ValidationError);
+	});
+
+	test("throws when repo is missing", () => {
+		expect(() => validateSubscribeInput({ email: "a@b.com", repo: "" })).toThrow(
+			ValidationError
+		);
+	});
+
+	test("throws for invalid email format", () => {
+		expect(() =>
+			validateSubscribeInput({ email: "not-an-email", repo: "owner/repo" })
+		).toThrow(ValidationError);
+	});
+
+	test("throws for invalid repo format (no slash)", () => {
+		expect(() =>
+			validateSubscribeInput({ email: "a@b.com", repo: "justarepo" })
+		).toThrow(ValidationError);
+	});
+
+	test("throws for invalid repo format (spaces)", () => {
+		expect(() =>
+			validateSubscribeInput({ email: "a@b.com", repo: "owner /repo" })
+		).toThrow(ValidationError);
+	});
+});
+
+describe("validateConfirmToken", () => {
+	test("passes with a non-empty token", () => {
+		expect(() => validateConfirmToken({ token: "abc123" })).not.toThrow();
+	});
+
+	test("throws when token is empty", () => {
+		expect(() => validateConfirmToken({ token: "" })).toThrow(ValidationError);
+	});
+
+	test("throws when token is missing", () => {
+		expect(() => validateConfirmToken({})).toThrow(ValidationError);
+	});
+});
+
+describe("validateUnsubscribeToken", () => {
+	test("passes with a non-empty token", () => {
+		expect(() => validateUnsubscribeToken({ token: "abc123" })).not.toThrow();
+	});
+
+	test("throws when token is empty", () => {
+		expect(() => validateUnsubscribeToken({ token: "" })).toThrow(
 			ValidationError
 		);
 	});
 });
 
-describe("validateEmail middleware", () => {
-	test("calls next() for valid email", () => {
-		const req = { body: { email: "user@example.com" } };
-		const next = vi.fn();
-		validateEmail(req, mockRes(), next);
-		expect(next).toHaveBeenCalledWith();
+describe("validateEmailQuery", () => {
+	test("passes with a valid email", () => {
+		expect(() =>
+			validateEmailQuery({ email: "user@example.com" })
+		).not.toThrow();
 	});
 
-	test("throws for invalid email", () => {
-		const req = { body: { email: "not-an-email" } };
-		expect(() => validateEmail(req, mockRes(), vi.fn())).toThrow(
+	test("throws for invalid email format", () => {
+		expect(() => validateEmailQuery({ email: "not-valid" })).toThrow(
 			ValidationError
 		);
+	});
+
+	test("throws when email is missing", () => {
+		expect(() => validateEmailQuery({})).toThrow(ValidationError);
 	});
 });

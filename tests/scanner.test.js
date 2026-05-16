@@ -50,7 +50,7 @@ describe("checkRepo", () => {
 				last_seen_tag: null,
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("first/check");
 
@@ -69,7 +69,7 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("same/tag");
 
@@ -94,7 +94,7 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("new/release");
 
@@ -139,7 +139,7 @@ describe("checkRepo", () => {
 				last_seen_tag: "v2.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("mixed/results");
 

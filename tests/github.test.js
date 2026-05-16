@@ -21,29 +21,6 @@ beforeEach(async () => {
 	github = await import("../src/services/github.js");
 });
 
-describe("isValidRepoFormat", () => {
-	test.each([
-		["denoland/deno", true],
-		["facebook/react", true],
-		["user-123/my_repo.js", true],
-		["org.name/repo-name", true],
-	])("accepts valid: %s", (input, expected) => {
-		expect(github.isValidRepoFormat(input)).toBe(expected);
-	});
-
-	test.each([
-		["denoland", false],
-		["/deno", false],
-		["denoland/", false],
-		["", false],
-		["a/b/c", false],
-		["user name/repo", false],
-		["user@name/repo", false],
-	])("rejects invalid: %s", (input, expected) => {
-		expect(github.isValidRepoFormat(input)).toBe(expected);
-	});
-});
-
 describe("GitHub API (mocked)", () => {
 	describe("repoExists", () => {
 		test("returns true for 200", async () => {

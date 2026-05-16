@@ -1,15 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 
 import { ConfirmError } from "../errors/constants/confirm.js";
-import { GetSubscriptionsError } from "../errors/constants/getSubscriptions.js";
 import { SubscribeError } from "../errors/constants/subscribe.js";
 import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
-import {
-	ConflictError,
-	NotFoundError,
-	RateLimitError,
-	ValidationError,
-} from "../errors/index.js";
+import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js";
 import {
 	confirmSubscription,
 	deleteByUnsubscribeToken,
@@ -17,7 +11,13 @@ import {
 	findByConfirmToken,
 	insertSubscription,
 } from "../repositories/subscriptionRepository.js";
-import { isValidRepoFormat, repoExists } from "./github.js";
+import {
+	validateConfirmToken,
+	validateEmailQuery,
+	validateSubscribeInput,
+	validateUnsubscribeToken,
+} from "../validation/index.js";
+import { repoExists } from "./github.js";
 import { sendConfirmationEmail } from "./notifier.js";
 
 /**
@@ -28,24 +28,7 @@ import { sendConfirmationEmail } from "./notifier.js";
  * @throws {AppError}
  */
 export async function subscribe(email, repo) {
-	if (!email || !repo) {
-		throw new ValidationError(
-			"Email or repository missing",
-			SubscribeError.MISSING_FIELDS
-		);
-	}
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		throw new ValidationError(
-			"Invalid email address",
-			SubscribeError.INVALID_EMAIL
-		);
-	}
-	if (!isValidRepoFormat(repo)) {
-		throw new ValidationError(
-			"Invalid repo format. Use owner/repo",
-			SubscribeError.INVALID_REPO_FORMAT
-		);
-	}
+	validateSubscribeInput({ email, repo });
 
 	try {
 		const exists = await repoExists(repo);
@@ -57,14 +40,7 @@ export async function subscribe(email, repo) {
 		}
 	} catch (err) {
 		if (err instanceof NotFoundError) throw err;
-
-		if (err instanceof RateLimitError) {
-			throw new RateLimitError(
-				"GitHub rate limit exceeded",
-				SubscribeError.RATE_LIMITED
-			);
-		}
-
+		if (err instanceof RateLimitError) throw err;
 		throw new Error(`Failed to verify repository: ${err.message}`, {
 			cause: err,
 		});
@@ -74,7 +50,7 @@ export async function subscribe(email, repo) {
 	const unsubscribeToken = uuidv4();
 
 	try {
-		insertSubscription(email, repo, confirmToken, unsubscribeToken);
+		await insertSubscription(email, repo, confirmToken, unsubscribeToken);
 	} catch (err) {
 		if (err.message.includes("UNIQUE constraint failed")) {
 			throw new ConflictError(
@@ -85,14 +61,7 @@ export async function subscribe(email, repo) {
 		throw new Error("Database error", { cause: err });
 	}
 
-	try {
-		await sendConfirmationEmail({ email, repo, confirmToken });
-	} catch (err) {
-		console.error(
-			"[SubscriptionService] Failed to send confirmation email:",
-			err.message
-		);
-	}
+	await sendConfirmationEmail({ email, repo, confirmToken });
 
 	return {
 		ok: true,
@@ -106,12 +75,10 @@ export async function subscribe(email, repo) {
  * @returns {Promise<{ ok: true, message: string, alreadyConfirmed?: boolean }>}
  * @throws {AppError}
  */
-export function confirm(token) {
-	if (!token) {
-		throw new ValidationError("Invalid token", ConfirmError.MISSING_TOKEN);
-	}
+export async function confirm(token) {
+	validateConfirmToken({ token });
 
-	const sub = findByConfirmToken(token);
+	const sub = await findByConfirmToken(token);
 	if (!sub) {
 		throw new NotFoundError("Token not found", ConfirmError.NOT_FOUND);
 	}
@@ -120,7 +87,7 @@ export function confirm(token) {
 		return { ok: true, message: "Already confirmed", alreadyConfirmed: true };
 	}
 
-	confirmSubscription(token);
+	await confirmSubscription(token);
 	return { ok: true, message: "Subscription confirmed successfully" };
 }
 
@@ -130,12 +97,10 @@ export function confirm(token) {
  * @returns {Promise<{ ok: true, message: string }>}
  * @throws {AppError}
  */
-export function unsubscribe(token) {
-	if (!token) {
-		throw new ValidationError("Invalid token", UnsubscribeError.MISSING_TOKEN);
-	}
+export async function unsubscribe(token) {
+	validateUnsubscribeToken({ token });
 
-	const result = deleteByUnsubscribeToken(token);
+	const result = await deleteByUnsubscribeToken(token);
 	if (result.changes === 0) {
 		throw new NotFoundError("Token not found", UnsubscribeError.NOT_FOUND);
 	}
@@ -149,15 +114,10 @@ export function unsubscribe(token) {
  * @returns {Promise<{ ok: true, subscriptions: Array<{email:string; repo:string; confirmed: boolean; last_seen_tag: string|null;}> }>}
  * @throws {AppError}
  */
-export function getSubscriptions(email) {
-	if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		throw new ValidationError(
-			"Invalid email",
-			GetSubscriptionsError.INVALID_EMAIL
-		);
-	}
+export async function getSubscriptions(email) {
+	validateEmailQuery({ email });
 
-	const rows = findAllByEmail(email);
+	const rows = await findAllByEmail(email);
 	return {
 		ok: true,
 		subscriptions: rows.map((r) => ({

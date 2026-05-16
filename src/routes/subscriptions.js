@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
 
-import { validate, validateEmail } from "../middleware/validate.js";
 import {
 	confirm,
 	getSubscriptions,
@@ -14,57 +13,52 @@ const router = Router();
 /**
  * POST /api/subscribe
  */
-router.post(
-	"/subscribe",
-	validate(["email", "repo"]),
-	validateEmail,
-	async (req, res, next) => {
-		try {
-			const { email, repo } = req.body;
-			const result = await subscribe(email, repo);
-			return res.status(StatusCodes.OK).json({ message: result.message });
-		} catch (err) {
-			next(err);
-		}
+router.post("/subscribe", async (req, res, next) => {
+	try {
+		const { email, repo } = req.body;
+		const result = await subscribe(email, repo);
+		return res.status(StatusCodes.OK).json({ message: result.message });
+	} catch (err) {
+		return next(err);
 	}
-);
+});
 
 /**
  * GET /api/confirm/:token
  */
-router.get("/confirm/:token", (req, res, next) => {
+router.get("/confirm/:token", async (req, res, next) => {
 	try {
 		const { token } = req.params;
-		const result = confirm(token);
+		const result = await confirm(token);
 		return res.status(StatusCodes.OK).json({ message: result.message });
 	} catch (err) {
-		next(err);
+		return next(err);
 	}
 });
 
 /**
  * GET /api/unsubscribe/:token
  */
-router.get("/unsubscribe/:token", (req, res, next) => {
+router.get("/unsubscribe/:token", async (req, res, next) => {
 	try {
 		const { token } = req.params;
-		const result = unsubscribe(token);
+		const result = await unsubscribe(token);
 		return res.status(StatusCodes.OK).json({ message: result.message });
 	} catch (err) {
-		next(err);
+		return next(err);
 	}
 });
 
 /**
  * GET /api/subscriptions?email=
  */
-router.get("/subscriptions", (req, res, next) => {
+router.get("/subscriptions", async (req, res, next) => {
 	try {
 		const { email } = req.query;
-		const result = getSubscriptions(email);
+		const result = await getSubscriptions(email);
 		return res.status(StatusCodes.OK).json(result.subscriptions);
 	} catch (err) {
-		next(err);
+		return next(err);
 	}
 });
 

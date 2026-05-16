@@ -15,10 +15,6 @@ const githubClient = axios.create({
 	timeout: 10000,
 });
 
-export function isValidRepoFormat(repo) {
-	return /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repo);
-}
-
 /**
  * Returns true if repo exists, false if 404.
  * Caches positive results for TTL.

@@ -18,6 +18,7 @@ export async function runMigrations() {
 		.addColumn("created_at", "text", (col) =>
 			col.notNull().defaultTo("datetime('now')")
 		)
+		.addUniqueConstraint("unique_email_repo", ["email", "repo"])
 		.execute();
 
 	console.log("[DB] Migrations applied");

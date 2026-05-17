@@ -1,0 +1,51 @@
+name: E2E Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and run E2E tests in Docker
+        run: |
+          docker compose -f docker-compose.e2e.yml \
+            up --build --abort-on-container-exit --exit-code-from e2e
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v
+
+      - name: Copy Playwright report out of container
+        if: always()
+        run: |
+          CONTAINER=$(docker compose -f docker-compose.e2e.yml ps -q e2e 2>/dev/null || true)
+          if [ -n "$CONTAINER" ]; then
+            docker cp "$CONTAINER:/app/playwright-report" ./playwright-report || true
+            docker cp "$CONTAINER:/app/test-results" ./test-results || true
+          fi
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (screenshots / traces)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7

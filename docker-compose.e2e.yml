@@ -1,0 +1,62 @@
+# Starts the full app and runs Playwright E2E tests.
+#
+#  docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+
+services:
+  redis:
+    image: redis:7-alpine
+    networks:
+      - e2e_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  ghchk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+      GRPC_PORT: 50051
+      DB_PATH: ":memory:"
+      BASE_URL: "http://localhost:3000"
+      CRON_SCHEDULE: "0 0 31 2 *"
+      REDIS_URL: "redis://redis:6379"
+      API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: "noreply@test.local"
+      LEFTHOOK: 0
+      NODE_ENV: "test"
+    networks:
+      - e2e_net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    environment:
+      E2E_BASE_URL: "http://ghchk:3000"
+      LEFTHOOK: 0
+      CI: "true"
+    networks:
+      - e2e_net
+    depends_on:
+      ghchk:
+        condition: service_healthy
+
+networks:
+  e2e_net:

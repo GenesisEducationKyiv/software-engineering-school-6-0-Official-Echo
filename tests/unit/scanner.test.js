@@ -28,6 +28,7 @@ import {
 	updateLastSeenTag,
 } from "#src/repositories/subscriptionRepository.js";
 import { getLatestRelease } from "#src/services/github.js";
+// eslint-disable-next-line no-unused-vars
 import { notificationsSentTotal, scannerRunsTotal } from "#src/services/metrics.js";
 import { sendReleaseNotification } from "#src/services/notifier.js";
 import { checkRepo } from "#src/services/scanner.js";

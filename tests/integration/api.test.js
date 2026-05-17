@@ -192,7 +192,6 @@ describe("GET /api/unsubscribe/:token", () => {
 
 	test("200 removes the subscription", async () => {
 		vi.mocked(repoExists).mockResolvedValue(true);
-		let capturedUnsubToken;
 
 		let capturedConfirmToken;
 		vi.mocked(sendConfirmationEmail).mockImplementation(({ confirmToken }) => {
@@ -207,7 +206,7 @@ describe("GET /api/unsubscribe/:token", () => {
 		const { findAllByEmail, findByConfirmToken } =
 			await import("#src/repositories/subscriptionRepository.js");
 		const row = await findByConfirmToken(capturedConfirmToken);
-		capturedUnsubToken = row?.unsubscribe_token;
+		const capturedUnsubToken = row?.unsubscribe_token;
 
 		const res = await api.get(`/api/unsubscribe/${capturedUnsubToken}`);
 		expect(res.status).toBe(200);

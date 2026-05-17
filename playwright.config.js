@@ -13,9 +13,11 @@ export default defineConfig({
 		trace: "on-first-retry",
 	},
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-	webServer: {
-		command: "pnpm start",
-		url: "http://localhost:3000",
-		reuseExistingServer: !process.env.CI,
-	},
+	webServer: process.env.E2E_BASE_URL
+		? undefined
+		: {
+				command: "pnpm start",
+				url: "http://localhost:3000",
+				reuseExistingServer: !process.env.CI,
+			},
 });

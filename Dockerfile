@@ -7,7 +7,8 @@ RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+RUN pnpm rebuild better-sqlite3
 
 COPY . .
 

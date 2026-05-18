@@ -1,0 +1,61 @@
+#   docker compose -f docker-compose.integration.yml up --build --abort-on-container-exit --exit-code-from tests
+
+services:
+  redis:
+    image: redis:7-alpine
+    networks:
+      - test_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  ghchk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+      GRPC_PORT: 50051
+      DB_PATH: ":memory:"
+      BASE_URL: "http://localhost:3000"
+      CRON_SCHEDULE: "0 0 31 2 *"
+      REDIS_URL: "redis://redis:6379"
+      API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: "noreply@test.local"
+      NODE_ENV: "test"
+      LEFTHOOK: 0
+    networks:
+      - test_net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      INTEGRATION_BASE_URL: "http://ghchk:3000"
+      DB_PATH: ":memory:"
+      LEFTHOOK: 0
+      NODE_ENV: "test"
+    networks:
+      - test_net
+    depends_on:
+      ghchk:
+        condition: service_healthy
+
+networks:
+  test_net:

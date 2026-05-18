@@ -15,7 +15,7 @@ const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
 export async function scanAllRepos() {
 	scannerRunsTotal.inc();
 
-	const repos = findConfirmedRepos();
+	const repos = await findConfirmedRepos();
 	console.log(`[Scanner] Checking ${repos.length} repo(s)...`);
 
 	for (const { repo } of repos) {
@@ -32,28 +32,29 @@ export async function scanAllRepos() {
 		}
 	}
 }
-
+/**
+ *
+ * @param {string} repo
+ */
 export async function checkRepo(repo) {
 	const latestTag = await getLatestRelease(repo);
 	if (!latestTag) return;
 
-	const subscribers = findConfirmedSubscribersByRepo(repo);
+	const subscribers = await findConfirmedSubscribersByRepo(repo);
 
 	for (const sub of subscribers) {
 		if (sub.last_seen_tag === null) {
-			updateLastSeenTag(sub.id, latestTag);
+			await updateLastSeenTag(sub.id, latestTag);
 			console.log(
 				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`
 			);
 			continue;
 		}
 
-		if (sub.last_seen_tag === latestTag) {
-			continue;
-		}
+		if (sub.last_seen_tag === latestTag) continue;
 
 		console.log(`[Scanner] ${repo} — ${sub.email}: NEW release ${latestTag}`);
-		updateLastSeenTag(sub.id, latestTag);
+		await updateLastSeenTag(sub.id, latestTag);
 
 		try {
 			await sendReleaseNotification({

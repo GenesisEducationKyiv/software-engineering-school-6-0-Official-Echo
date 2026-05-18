@@ -2,7 +2,7 @@ import { ForbiddenError, UnauthorizedError } from "../errors/index.js";
 
 /**
  * Protects routes with an API key passed in the X-API-Key header.
- * If API_KEY env var is not set, auth is disabled (dev mode).
+ * If API_KEY env var is not set, auth is disabled.
  */
 export function apiKeyAuth(req, _res, next) {
 	const API_KEY = process.env.API_KEY;

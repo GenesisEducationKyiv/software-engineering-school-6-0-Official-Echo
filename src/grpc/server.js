@@ -29,21 +29,21 @@ const Subscribe = catchGrpcErrors(async (call, callback) => {
 	callback(null, { message: result.message });
 });
 
-const Confirm = catchGrpcErrors((call, callback) => {
+const Confirm = catchGrpcErrors(async (call, callback) => {
 	const { token } = call.request;
-	const result = confirm(token);
+	const result = await confirm(token);
 	callback(null, { message: result.message });
 });
 
-const Unsubscribe = catchGrpcErrors((call, callback) => {
+const Unsubscribe = catchGrpcErrors(async (call, callback) => {
 	const { token } = call.request;
-	const result = unsubscribe(token);
+	const result = await unsubscribe(token);
 	callback(null, { message: result.message });
 });
 
-const GetSubscriptions = catchGrpcErrors((call, callback) => {
+const GetSubscriptions = catchGrpcErrors(async (call, callback) => {
 	const { email } = call.request;
-	const result = getSubscriptions(email);
+	const result = await getSubscriptions(email);
 	callback(null, {
 		subscriptions: result.subscriptions.map((s) => ({
 			email: s.email,

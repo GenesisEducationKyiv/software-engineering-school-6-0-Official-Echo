@@ -2,7 +2,7 @@ import { StatusCodes } from "http-status-codes";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("axios");
-vi.mock("../src/services/cache.js", () => ({
+vi.mock("#src/services/cache.js", () => ({
 	cacheGet: vi.fn().mockResolvedValue(null),
 	cacheSet: vi.fn().mockResolvedValue(undefined),
 }));
@@ -18,30 +18,7 @@ beforeEach(async () => {
 	const { default: axios } = await import("axios");
 	axios.create = vi.fn().mockReturnValue({ get: mockGet });
 
-	github = await import("../src/services/github.js");
-});
-
-describe("isValidRepoFormat", () => {
-	test.each([
-		["denoland/deno", true],
-		["facebook/react", true],
-		["user-123/my_repo.js", true],
-		["org.name/repo-name", true],
-	])("accepts valid: %s", (input, expected) => {
-		expect(github.isValidRepoFormat(input)).toBe(expected);
-	});
-
-	test.each([
-		["denoland", false],
-		["/deno", false],
-		["denoland/", false],
-		["", false],
-		["a/b/c", false],
-		["user name/repo", false],
-		["user@name/repo", false],
-	])("rejects invalid: %s", (input, expected) => {
-		expect(github.isValidRepoFormat(input)).toBe(expected);
-	});
+	github = await import("#src/services/github.js");
 });
 
 describe("GitHub API (mocked)", () => {

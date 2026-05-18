@@ -1,19 +1,24 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("../src/services/github.js", () => ({
+import { RateLimitError } from "#src/errors/index.js";
+import { findConfirmedRepos } from "#src/repositories/subscriptionRepository.js";
+import { scanAllRepos } from "#src/services/scanner.js";
+
+vi.mock("#src/services/github.js", () => ({
 	getLatestRelease: vi.fn(),
 }));
 
-vi.mock("../src/services/notifier.js", () => ({
+vi.mock("#src/services/notifier.js", () => ({
 	sendReleaseNotification: vi.fn(),
 }));
 
-vi.mock("../src/repositories/subscriptionRepository.js", () => ({
+vi.mock("#src/repositories/subscriptionRepository.js", () => ({
 	findConfirmedSubscribersByRepo: vi.fn(),
 	updateLastSeenTag: vi.fn(),
+	findConfirmedRepos: vi.fn(),
 }));
 
-vi.mock("../src/services/metrics.js", () => ({
+vi.mock("#src/services/metrics.js", () => ({
 	notificationsSentTotal: { inc: vi.fn() },
 	scannerRunsTotal: { inc: vi.fn() },
 }));
@@ -21,10 +26,12 @@ vi.mock("../src/services/metrics.js", () => ({
 import {
 	findConfirmedSubscribersByRepo,
 	updateLastSeenTag,
-} from "../src/repositories/subscriptionRepository.js";
-import { getLatestRelease } from "../src/services/github.js";
-import { sendReleaseNotification } from "../src/services/notifier.js";
-import { checkRepo } from "../src/services/scanner.js";
+} from "#src/repositories/subscriptionRepository.js";
+import { getLatestRelease } from "#src/services/github.js";
+// eslint-disable-next-line no-unused-vars
+import { notificationsSentTotal, scannerRunsTotal } from "#src/services/metrics.js";
+import { sendReleaseNotification } from "#src/services/notifier.js";
+import { checkRepo } from "#src/services/scanner.js";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -50,7 +57,7 @@ describe("checkRepo", () => {
 				last_seen_tag: null,
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("first/check");
 
@@ -69,7 +76,7 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("same/tag");
 
@@ -94,7 +101,7 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("new/release");
 
@@ -139,10 +146,50 @@ describe("checkRepo", () => {
 				last_seen_tag: "v2.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockReturnValue(subscribers);
+		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
 
 		await checkRepo("mixed/results");
 
 		expect(sendReleaseNotification).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("scanAllRepos", () => {
+	test("increments scanner run counter", async () => {
+		findConfirmedRepos.mockResolvedValue([]);
+		await scanAllRepos();
+		expect(scannerRunsTotal.inc).toHaveBeenCalled();
+	});
+
+	test("does nothing when no confirmed repos", async () => {
+		findConfirmedRepos.mockResolvedValue([]);
+		await scanAllRepos();
+		expect(getLatestRelease).not.toHaveBeenCalled();
+	});
+
+	test("stops on RateLimitError and skips remaining repos", async () => {
+		findConfirmedRepos.mockResolvedValue([
+			{ repo: "a/one" },
+			{ repo: "b/two" },
+			{ repo: "c/three" },
+		]);
+		getLatestRelease
+			.mockResolvedValueOnce(null)
+			.mockRejectedValueOnce(
+				new RateLimitError("rate limited", "RATE_LIMITED", 30)
+			)
+			.mockResolvedValueOnce(null);
+		findConfirmedSubscribersByRepo.mockResolvedValue([]);
+		await scanAllRepos();
+		expect(getLatestRelease).toHaveBeenCalledTimes(2);
+	});
+
+	test("continues after a non-rate-limit error", async () => {
+		findConfirmedRepos.mockResolvedValue([{ repo: "a/one" }, { repo: "b/two" }]);
+		getLatestRelease
+			.mockRejectedValueOnce(new Error("network error"))
+			.mockResolvedValueOnce(null);
+		await scanAllRepos();
+		expect(getLatestRelease).toHaveBeenCalledTimes(2);
 	});
 });

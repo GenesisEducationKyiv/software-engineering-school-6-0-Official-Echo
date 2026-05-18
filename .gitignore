@@ -4,3 +4,5 @@ data/
 coverage/
 *.db
 Deno.json
+pnpm-workspace.yaml
+test-results

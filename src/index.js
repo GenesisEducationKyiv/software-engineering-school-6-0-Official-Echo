@@ -37,7 +37,7 @@ app.use(
 
 app.use(httpErrorHandler);
 
-runMigrations();
+await runMigrations();
 
 const server = app.listen(PORT, () => {
 	console.log(`[HTTP] Running on port ${PORT}`);

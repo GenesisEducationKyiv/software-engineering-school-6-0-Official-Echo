@@ -28,7 +28,7 @@
 	"dependencies": {
 		"@grpc/grpc-js": "^1.14.3",
 		"@grpc/proto-loader": "^0.8.0",
-		"axios": "^1.15.2",
+		"axios": "^1.16.1",
 		"better-sqlite3": "^12.9.0",
 		"express": "^5.2.1",
 		"http-status-codes": "^2.3.0",

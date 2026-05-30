@@ -6,6 +6,7 @@ import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
 import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js";
 import {
 	confirmSubscription,
+	countSubscriptions,
 	deleteByUnsubscribeToken,
 	findAllByEmail,
 	findByConfirmToken,
@@ -18,7 +19,14 @@ import {
 	validateUnsubscribeToken,
 } from "../validation/index.js";
 import { repoExists } from "./github.js";
+import { confirmedSubscriptionsTotal, subscriptionsTotal } from "./metrics.js";
 import { sendConfirmationEmail } from "./notifier.js";
+
+async function refreshSubscriptionGauges() {
+	const counts = await countSubscriptions();
+	subscriptionsTotal.set(counts.total);
+	confirmedSubscriptionsTotal.set(counts.confirmed);
+}
 
 /**
  * Subscribes an email to repo release notifications.
@@ -63,6 +71,8 @@ export async function subscribe(email, repo) {
 
 	await sendConfirmationEmail({ email, repo, confirmToken });
 
+	void refreshSubscriptionGauges();
+
 	return {
 		ok: true,
 		message: "Subscription created. Check your email to confirm.",
@@ -88,6 +98,7 @@ export async function confirm(token) {
 	}
 
 	await confirmSubscription(token);
+	void refreshSubscriptionGauges();
 	return { ok: true, message: "Subscription confirmed successfully" };
 }
 

@@ -8,6 +8,11 @@ import {
 } from "../repositories/subscriptionRepository.js";
 import { getLatestRelease } from "./github.js";
 import { logger } from "./logger.js";
+import {
+	notificationsSentTotal,
+	scannerErrorsTotal,
+	scannerRunsTotal,
+} from "./metrics.js";
 import { sendReleaseNotification } from "./notifier.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
@@ -29,6 +34,7 @@ export async function scanAllRepos() {
 				);
 				break;
 			}
+			scannerErrorsTotal.inc();
 			logger.error({ err, repo }, "[Scanner] Error checking repo");
 		}
 	}
@@ -70,6 +76,7 @@ export async function checkRepo(repo) {
 			});
 			notificationsSentTotal.inc();
 		} catch (err) {
+			scannerErrorsTotal.inc();
 			logger.error(
 				{ err, email: sub.email, repo },
 				"[Scanner] Failed to send notification"
@@ -81,5 +88,7 @@ export async function checkRepo(repo) {
 export function startScanner() {
 	logger.info({ schedule: CRON_SCHEDULE }, "[Scanner] Starting");
 	schedule(CRON_SCHEDULE, scanAllRepos);
-	scanAllRepos().catch(console.error);
+	scanAllRepos().catch((err) =>
+		logger.error({ err }, "[Scanner] Initial scan failed")
+	);
 }

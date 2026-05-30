@@ -21,8 +21,14 @@ services:
             SMTP_USER: ${SMTP_USER:-}
             SMTP_PASS: ${SMTP_PASS:-}
             SMTP_FROM: ${SMTP_FROM:-noreply@github-notifier.dev}
+            LOG_LEVEL: ${LOG_LEVEL:-info}
+            ELASTICSEARCH_URL: http://elasticsearch:9200
+            ELASTICSEARCH_INDEX: ghchk-logs
         depends_on:
-            - redis
+            elasticsearch:
+                condition: service_healthy
+            redis:
+                condition: service_started
         restart: unless-stopped
 
     redis:
@@ -31,6 +37,69 @@ services:
         volumes:
             - redis_data:/data
 
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - ES_JAVA_OPTS=-Xms512m -Xmx512m
+        ports:
+            - "9200:9200"
+        volumes:
+            - es_data:/usr/share/elasticsearch/data
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'curl -sf http://localhost:9200/_cluster/health | grep -v ''"status":"red"''',
+                ]
+            interval: 15s
+            timeout: 10s
+            retries: 10
+        restart: unless-stopped
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:8.13.4
+        ports:
+            - "5601:5601"
+        environment:
+            ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+        depends_on:
+            elasticsearch:
+                condition: service_healthy
+        restart: unless-stopped
+
+    prometheus:
+        image: prom/prometheus:v2.52.0
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus_data:/prometheus
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=15d"
+        restart: unless-stopped
+
+    grafana:
+        image: grafana/grafana:10.4.3
+        ports:
+            - "3001:3000"
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+            GF_USERS_ALLOW_SIGN_UP: "false"
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+        depends_on:
+            - prometheus
+        restart: unless-stopped
+
 volumes:
     db_data:
     redis_data:
+    es_data:
+    prometheus_data:
+    grafana_data:

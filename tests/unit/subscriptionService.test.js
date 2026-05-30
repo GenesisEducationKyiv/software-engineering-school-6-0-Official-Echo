@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("../../src/repositories/subscriptionRepository.js", () => ({
+vi.mock("#src/repositories/subscriptionRepository.js", () => ({
 	insertSubscription: vi.fn(),
 	findByConfirmToken: vi.fn(),
 	confirmSubscription: vi.fn(),
@@ -8,11 +8,11 @@ vi.mock("../../src/repositories/subscriptionRepository.js", () => ({
 	findAllByEmail: vi.fn(),
 }));
 
-vi.mock("../../src/services/github.js", () => ({
+vi.mock("#src/services/github.js", () => ({
 	repoExists: vi.fn(),
 }));
 
-vi.mock("../../src/services/notifier.js", () => ({
+vi.mock("#src/services/notifier.js", () => ({
 	sendConfirmationEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -21,22 +21,22 @@ import {
 	NotFoundError,
 	RateLimitError,
 	ValidationError,
-} from "../../src/errors/index.js";
+} from "#src/errors/index.js";
 import {
 	confirmSubscription,
 	deleteByUnsubscribeToken,
 	findAllByEmail,
 	findByConfirmToken,
 	insertSubscription,
-} from "../../src/repositories/subscriptionRepository.js";
-import { repoExists } from "../../src/services/github.js";
-import { sendConfirmationEmail } from "../../src/services/notifier.js";
+} from "#src/repositories/subscriptionRepository.js";
+import { repoExists } from "#src/services/github.js";
+import { sendConfirmationEmail } from "#src/services/notifier.js";
 import {
 	confirm,
 	getSubscriptions,
 	subscribe,
 	unsubscribe,
-} from "../../src/services/subscriptionService.js";
+} from "#src/services/subscriptionService.js";
 
 describe("subscribe()", () => {
 	beforeEach(() => {

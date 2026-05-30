@@ -6,6 +6,10 @@ vi.mock("#src/repositories/subscriptionRepository.js", () => ({
 	confirmSubscription: vi.fn(),
 	deleteByUnsubscribeToken: vi.fn(),
 	findAllByEmail: vi.fn(),
+	countSubscriptions: vi.fn().mockResolvedValue({
+		total: 1,
+		confirmed: 1,
+	}),
 }));
 
 vi.mock("#src/services/github.js", () => ({

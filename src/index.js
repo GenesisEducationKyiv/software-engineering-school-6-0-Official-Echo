@@ -6,6 +6,7 @@ import { httpErrorHandler } from "./errors/httpHandler.js";
 import { startGrpcServer } from "./grpc/server.js";
 import { apiKeyAuth } from "./middleware/auth.js";
 import subscriptionsRouter from "./routes/subscriptions.js";
+import { httpLoggerMiddleware, logger } from "./services/logger.js";
 import { metricsMiddleware, register } from "./services/metrics.js";
 import { startScanner } from "./services/scanner.js";
 
@@ -14,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(json());
 app.use(metricsMiddleware);
+app.use(httpLoggerMiddleware);
 
 app.use(express.static(join(import.meta.dirname, "../public")));
 
@@ -40,7 +42,7 @@ app.use(httpErrorHandler);
 await runMigrations();
 
 const server = app.listen(PORT, () => {
-	console.log(`[HTTP] Running on port ${PORT}`);
+	logger.info({ port: PORT }, "[HTTP] Running on port %d", PORT);
 	startScanner();
 	startGrpcServer();
 });

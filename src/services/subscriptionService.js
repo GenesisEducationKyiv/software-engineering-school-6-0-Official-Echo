@@ -7,10 +7,6 @@ import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js
 import {
 	confirmSubscription,
 	countSubscriptions,
-	deleteByUnsubscribeToken,
-	findAllByEmail,
-	findByConfirmToken,
-	insertSubscription,
 } from "../repositories/subscriptionRepository.js";
 import {
 	validateConfirmToken,
@@ -18,9 +14,7 @@ import {
 	validateSubscribeInput,
 	validateUnsubscribeToken,
 } from "../validation/index.js";
-import { repoExists } from "./github.js";
 import { confirmedSubscriptionsTotal, subscriptionsTotal } from "./metrics.js";
-import { sendConfirmationEmail } from "./notifier.js";
 
 async function refreshSubscriptionGauges() {
 	const counts = await countSubscriptions();
@@ -29,113 +23,146 @@ async function refreshSubscriptionGauges() {
 }
 
 /**
- * Subscribes an email to repo release notifications.
- * @param {string} email
- * @param {string} repo
- * @returns {Promise<{ ok: true, message: string }>}
- * @throws {AppError}
+ * Creates the subscription service with all infrastructure dependencies injected.
+ * @param {{repository: {
+ *     insertSubscription: Function,
+ *     findByConfirmToken: Function,
+ *     confirmSubscription: Function,
+ *     deleteByUnsubscribeToken: Function,
+ *     findAllByEmail: Function,
+ *   },
+ *   githubService: {
+ *     repoExists: Function,
+ *   },
+ *   notifier: {
+ *     sendConfirmationEmail: Function,
+ *   },
+ * }} deps
  */
-export async function subscribe(email, repo) {
-	validateSubscribeInput({ email, repo });
-
-	try {
-		const exists = await repoExists(repo);
-		if (!exists) {
-			throw new NotFoundError(
-				`Repository "${repo}" not found`,
-				SubscribeError.REPO_NOT_FOUND
-			);
-		}
-	} catch (err) {
-		if (err instanceof NotFoundError) throw err;
-		if (err instanceof RateLimitError) throw err;
-		throw new Error(`Failed to verify repository: ${err.message}`, {
-			cause: err,
-		});
-	}
-
-	const confirmToken = uuidv4();
-	const unsubscribeToken = uuidv4();
-
-	try {
-		await insertSubscription(email, repo, confirmToken, unsubscribeToken);
-	} catch (err) {
-		if (err.message.includes("UNIQUE constraint failed")) {
-			throw new ConflictError(
-				"Already subscribed to this repository",
-				SubscribeError.ALREADY_EXISTS
-			);
-		}
-		throw new Error("Database error", { cause: err });
-	}
-
-	await sendConfirmationEmail({ email, repo, confirmToken });
-
-	void refreshSubscriptionGauges();
-
+export function createSubscriptionService({ repository, githubService, notifier }) {
 	return {
-		ok: true,
-		message: "Subscription created. Check your email to confirm.",
-	};
-}
+		/**
+		 * Subscribes an email to repo release notifications.
+		 * @param {string} email
+		 * @param {string} repo
+		 * @returns {Promise<{ ok: true, message: string }>}
+		 * @throws {AppError}
+		 */
+		async subscribe(email, repo) {
+			validateSubscribeInput({ email, repo });
 
-/**
- * Confirms a subscription by token.
- * @param {string} token
- * @returns {Promise<{ ok: true, message: string, alreadyConfirmed?: boolean }>}
- * @throws {AppError}
- */
-export async function confirm(token) {
-	validateConfirmToken({ token });
+			try {
+				const exists = await githubService.repoExists(repo);
+				if (!exists) {
+					throw new NotFoundError(
+						`Repository "${repo}" not found`,
+						SubscribeError.REPO_NOT_FOUND
+					);
+				}
+			} catch (err) {
+				if (err instanceof NotFoundError) throw err;
+				if (err instanceof RateLimitError) throw err;
+				throw new Error(`Failed to verify repository: ${err.message}`, {
+					cause: err,
+				});
+			}
 
-	const sub = await findByConfirmToken(token);
-	if (!sub) {
-		throw new NotFoundError("Token not found", ConfirmError.NOT_FOUND);
-	}
+			const confirmToken = uuidv4();
+			const unsubscribeToken = uuidv4();
 
-	if (sub.confirmed) {
-		return { ok: true, message: "Already confirmed", alreadyConfirmed: true };
-	}
+			try {
+				await repository.insertSubscription(
+					email,
+					repo,
+					confirmToken,
+					unsubscribeToken
+				);
+			} catch (err) {
+				if (err.message.includes("UNIQUE constraint failed")) {
+					throw new ConflictError(
+						"Already subscribed to this repository",
+						SubscribeError.ALREADY_EXISTS
+					);
+				}
+				throw new Error("Database error", { cause: err });
+			}
 
-	await confirmSubscription(token);
-	void refreshSubscriptionGauges();
-	return { ok: true, message: "Subscription confirmed successfully" };
-}
+			await notifier.sendConfirmationEmail({ to: email, repo, confirmToken });
 
-/**
- * Unsubscribes by token.
- * @param {string} token
- * @returns {Promise<{ ok: true, message: string }>}
- * @throws {AppError}
- */
-export async function unsubscribe(token) {
-	validateUnsubscribeToken({ token });
+			void refreshSubscriptionGauges();
 
-	const result = await deleteByUnsubscribeToken(token);
-	if (result.changes === 0) {
-		throw new NotFoundError("Token not found", UnsubscribeError.NOT_FOUND);
-	}
+			return {
+				ok: true,
+				message: "Subscription created. Check your email to confirm.",
+			};
+		},
 
-	return { ok: true, message: "Unsubscribed successfully" };
-}
+		/**
+		 * Confirms a subscription by token.
+		 * @param {string} token
+		 * @returns {Promise<{ ok: true, message: string, alreadyConfirmed?: boolean }>}
+		 * @throws {AppError}
+		 */
+		async confirm(token) {
+			validateConfirmToken({ token });
 
-/**
- * Returns all subscriptions for a given email.
- * @param {string} email
- * @returns {Promise<{ ok: true, subscriptions: Array<{email:string; repo:string; confirmed: boolean; last_seen_tag: string|null;}> }>}
- * @throws {AppError}
- */
-export async function getSubscriptions(email) {
-	validateEmailQuery({ email });
+			const sub = await repository.findByConfirmToken(token);
+			if (!sub) {
+				throw new NotFoundError("Token not found", ConfirmError.NOT_FOUND);
+			}
 
-	const rows = await findAllByEmail(email);
-	return {
-		ok: true,
-		subscriptions: rows.map((r) => ({
-			email: r.email,
-			repo: r.repo,
-			confirmed: r.confirmed === 1,
-			last_seen_tag: r.last_seen_tag,
-		})),
+			if (sub.confirmed) {
+				return {
+					ok: true,
+					message: "Already confirmed",
+					alreadyConfirmed: true,
+				};
+			}
+
+			await repository.confirmSubscription(token);
+			void refreshSubscriptionGauges();
+			return { ok: true, message: "Subscription confirmed successfully" };
+		},
+
+		/**
+		 * Unsubscribes by token.
+		 * @param {string} token
+		 * @returns {Promise<{ ok: true, message: string }>}
+		 * @throws {AppError}
+		 */
+		async unsubscribe(token) {
+			validateUnsubscribeToken({ token });
+
+			const result = await repository.deleteByUnsubscribeToken(token);
+			if (result.changes === 0) {
+				throw new NotFoundError(
+					"Token not found",
+					UnsubscribeError.NOT_FOUND
+				);
+			}
+
+			return { ok: true, message: "Unsubscribed successfully" };
+		},
+
+		/**
+		 * Returns all subscriptions for a given email.
+		 * @param {string} email
+		 * @returns {Promise<{ ok: true, subscriptions: Array }>}
+		 * @throws {AppError}
+		 */
+		async getSubscriptions(email) {
+			validateEmailQuery({ email });
+
+			const rows = await repository.findAllByEmail(email);
+			return {
+				ok: true,
+				subscriptions: rows.map((r) => ({
+					email: r.email,
+					repo: r.repo,
+					confirmed: r.confirmed === 1,
+					last_seen_tag: r.last_seen_tag,
+				})),
+			};
+		},
 	};
 }

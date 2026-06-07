@@ -12,24 +12,22 @@ import {
 } from "#src/errors/index.js";
 
 describe("AppError and subclasses", () => {
-	test("ValidationError has httpStatus 400", () => {
+	test("ValidationError is an AppError with correct code", () => {
 		const err = new ValidationError("bad input", "BAD");
-		expect(err.httpStatus).toBe(400);
+		expect(err).toBeInstanceOf(AppError);
+		expect(err.code).toBe("BAD");
+		expect(err.message).toBe("bad input");
 	});
 
-	test("NotFoundError has httpStatus 404", () => {
+	test("NotFoundError is an AppError with correct code", () => {
 		const err = new NotFoundError("not found", "NF");
-		expect(err.httpStatus).toBe(404);
+		expect(err).toBeInstanceOf(AppError);
+		expect(err.code).toBe("NF");
 	});
 
-	test("ConflictError has httpStatus 409", () => {
+	test("ConflictError is an AppError with correct code", () => {
 		const err = new ConflictError("conflict", "C");
-		expect(err.httpStatus).toBe(409);
-	});
-
-	test("RateLimitError has httpStatus 429", () => {
-		const err = new RateLimitError("slow down", "RL");
-		expect(err.httpStatus).toBe(429);
+		expect(err).toBeInstanceOf(AppError);
 	});
 
 	test("RateLimitError stores retryAfter (default 60)", () => {
@@ -42,21 +40,14 @@ describe("AppError and subclasses", () => {
 		expect(err.retryAfter).toBe(120);
 	});
 
-	test("UnauthorizedError has httpStatus 401", () => {
+	test("UnauthorizedError is an AppError", () => {
 		const err = new UnauthorizedError("no auth", "NA");
-		expect(err.httpStatus).toBe(401);
+		expect(err).toBeInstanceOf(AppError);
 	});
 
-	test("ForbiddenError has httpStatus 403", () => {
+	test("ForbiddenError is an AppError", () => {
 		const err = new ForbiddenError("no perms", "NP");
-		expect(err.httpStatus).toBe(403);
-	});
-
-	test("toHttp() returns correct status and body", () => {
-		const err = new ValidationError("Invalid email", "INVALID_EMAIL");
-		const { status, body } = err.toHttp();
-		expect(status).toBe(400);
-		expect(body).toEqual({ code: "INVALID_EMAIL", error: "Invalid email" });
+		expect(err).toBeInstanceOf(AppError);
 	});
 
 	test("AppError sets name to constructor name", () => {
@@ -76,6 +67,12 @@ describe("AppError and subclasses", () => {
 			expect(new Cls("msg", "CODE")).toBeInstanceOf(AppError);
 		}
 	});
+
+	test("errors no longer carry toHttp or toGrpc", () => {
+		const err = new ValidationError("x", "Y");
+		expect(err.toHttp).toBeUndefined();
+		expect(err.toGrpc).toBeUndefined();
+	});
 });
 
 function mockRes() {
@@ -86,7 +83,18 @@ function mockRes() {
 }
 
 describe("httpErrorHandler()", () => {
-	test("renders AppError with its own status and body", () => {
+	test("ValidationError → 400", () => {
+		const err = new ValidationError("Invalid email", "INVALID_EMAIL");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(400);
+		expect(res.json).toHaveBeenCalledWith({
+			code: "INVALID_EMAIL",
+			error: "Invalid email",
+		});
+	});
+
+	test("NotFoundError → 404", () => {
 		const err = new NotFoundError("resource not found", "NF");
 		const res = mockRes();
 		httpErrorHandler(err, {}, res, vi.fn());
@@ -97,7 +105,35 @@ describe("httpErrorHandler()", () => {
 		});
 	});
 
-	test("returns 500 for non-AppError", () => {
+	test("ConflictError → 409", () => {
+		const err = new ConflictError("already exists", "EXISTS");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(409);
+	});
+
+	test("RateLimitError → 429", () => {
+		const err = new RateLimitError("slow down", "RL");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(429);
+	});
+
+	test("UnauthorizedError → 401", () => {
+		const err = new UnauthorizedError("no auth", "NA");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(401);
+	});
+
+	test("ForbiddenError → 403", () => {
+		const err = new ForbiddenError("no perms", "NP");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(403);
+	});
+
+	test("unknown error → 500 with INTERNAL_ERROR code", () => {
 		const err = new Error("unexpected crash");
 		const res = mockRes();
 		httpErrorHandler(err, {}, res, vi.fn());

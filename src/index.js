@@ -1,50 +1,9 @@
-import express, { json } from "express";
-import { join } from "path";
+import { config } from "dotenv";
+config({ quiet: true });
 
-import { runMigrations } from "./db/database.js";
-import { httpErrorHandler } from "./errors/httpHandler.js";
-import { startGrpcServer } from "./grpc/server.js";
-import { apiKeyAuth } from "./middleware/auth.js";
-import subscriptionsRouter from "./routes/subscriptions.js";
-import { httpLoggerMiddleware, logger } from "./services/logger.js";
-import { metricsMiddleware, register } from "./services/metrics.js";
-import { startScanner } from "./services/scanner.js";
+import { startServer } from "./server.js";
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(json());
-app.use(metricsMiddleware);
-app.use(httpLoggerMiddleware);
-
-app.use(express.static(join(import.meta.dirname, "../public")));
-
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
-
-app.get("/metrics", async (_req, res) => {
-	res.set("Content-Type", register.contentType);
-	res.end(await register.metrics());
+startServer().catch((err) => {
+	console.error("[Fatal] Failed to start server:", err);
+	process.exit(1);
 });
-
-app.use(
-	"/api",
-	(req, res, next) => {
-		const isPublicTokenRoute =
-			req.path.startsWith("/confirm/") || req.path.startsWith("/unsubscribe/");
-		if (isPublicTokenRoute) return next();
-		return apiKeyAuth(req, res, next);
-	},
-	subscriptionsRouter
-);
-
-app.use(httpErrorHandler);
-
-await runMigrations();
-
-const server = app.listen(PORT, () => {
-	logger.info({ port: PORT }, "[HTTP] Running on port %d", PORT);
-	startScanner();
-	startGrpcServer();
-});
-
-export { app, server };

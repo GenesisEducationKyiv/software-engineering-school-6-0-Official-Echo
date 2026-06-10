@@ -109,3 +109,19 @@ export async function updateLastSeenTag(id, tag) {
 		.where("id", "=", id)
 		.execute();
 }
+
+/**
+ * @returns {Promise<{ total: number; confirmed: number }>}
+ */
+export async function countSubscriptions() {
+	const [{ total }] = await db()
+		.selectFrom("subscriptions")
+		.select((eb) => eb.fn.countAll().as("total"))
+		.execute();
+	const [{ confirmed }] = await db()
+		.selectFrom("subscriptions")
+		.select((eb) => eb.fn.countAll().as("confirmed"))
+		.where("confirmed", "=", 1)
+		.execute();
+	return { total: Number(total), confirmed: Number(confirmed) };
+}

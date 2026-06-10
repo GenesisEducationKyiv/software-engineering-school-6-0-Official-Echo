@@ -21,6 +21,7 @@ vi.mock("#src/repositories/subscriptionRepository.js", () => ({
 vi.mock("#src/services/metrics.js", () => ({
 	notificationsSentTotal: { inc: vi.fn() },
 	scannerRunsTotal: { inc: vi.fn() },
+	scannerErrorsTotal: { inc: vi.fn() },
 }));
 
 import {

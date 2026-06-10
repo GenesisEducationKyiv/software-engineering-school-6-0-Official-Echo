@@ -1,0 +1,379 @@
+{
+	"uid": "ghchk-red",
+	"title": "Github Notifier RED Metrics",
+	"description": "Rate · Errors · Duration",
+	"timezone": "browser",
+	"schemaVersion": 38,
+	"refresh": "30s",
+	"time": {
+		"from": "now-1h",
+		"to": "now"
+	},
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Request Rate (req/s)",
+			"gridPos": {
+				"h": 4,
+				"w": 6,
+				"x": 0,
+				"y": 0
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"options": {
+				"colorMode": "background",
+				"graphMode": "area",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"]
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "thresholds"
+					},
+					"thresholds": {
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(http_requests_total{job=\"ghchk\"}[1m]))",
+					"legendFormat": "req/s"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Error Rate (errors/s)",
+			"gridPos": {
+				"h": 4,
+				"w": 6,
+				"x": 6,
+				"y": 0
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"options": {
+				"colorMode": "background",
+				"graphMode": "area",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"]
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "thresholds"
+					},
+					"thresholds": {
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 0.01
+							}
+						]
+					}
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(http_errors_total{job=\"ghchk\"}[1m]))",
+					"legendFormat": "errors/s"
+				}
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Error Ratio (%)",
+			"gridPos": {
+				"h": 4,
+				"w": 6,
+				"x": 12,
+				"y": 0
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"options": {
+				"colorMode": "background",
+				"graphMode": "none",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"]
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "percentunit",
+					"color": {
+						"mode": "thresholds"
+					},
+					"thresholds": {
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "yellow",
+								"value": 0.01
+							},
+							{
+								"color": "red",
+								"value": 0.05
+							}
+						]
+					}
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(http_errors_total{job=\"ghchk\"}[5m])) / sum(rate(http_requests_total{job=\"ghchk\"}[5m]))",
+					"legendFormat": "error %"
+				}
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "P99 Latency",
+			"gridPos": {
+				"h": 4,
+				"w": 6,
+				"x": 18,
+				"y": 0
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"options": {
+				"colorMode": "background",
+				"graphMode": "none",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"]
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"color": {
+						"mode": "thresholds"
+					},
+					"thresholds": {
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "yellow",
+								"value": 0.5
+							},
+							{
+								"color": "red",
+								"value": 1
+							}
+						]
+					}
+				}
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"ghchk\"}[5m])) by (le))",
+					"legendFormat": "p99"
+				}
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "HTTP Request Rate by Route",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 4
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps"
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(http_requests_total{job=\"ghchk\"}[1m])) by (route, method)",
+					"legendFormat": "{{method}} {{route}}"
+				}
+			]
+		},
+		{
+			"id": 6,
+			"type": "timeseries",
+			"title": "HTTP Errors by Route",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 4
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(http_errors_total{job=\"ghchk\"}[1m])) by (route, status)",
+					"legendFormat": "{{status}} {{route}}"
+				}
+			]
+		},
+		{
+			"id": 7,
+			"type": "timeseries",
+			"title": "Request Duration Percentiles",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 12
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s"
+				}
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"ghchk\"}[5m])) by (le))",
+					"legendFormat": "p50"
+				},
+				{
+					"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"ghchk\"}[5m])) by (le))",
+					"legendFormat": "p95"
+				},
+				{
+					"expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"ghchk\"}[5m])) by (le))",
+					"legendFormat": "p99"
+				}
+			]
+		},
+		{
+			"id": 8,
+			"type": "timeseries",
+			"title": "Subscriptions",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 12
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short"
+				}
+			},
+			"targets": [
+				{
+					"expr": "subscriptions_total{job=\"ghchk\"}",
+					"legendFormat": "total"
+				},
+				{
+					"expr": "confirmed_subscriptions_total{job=\"ghchk\"}",
+					"legendFormat": "confirmed"
+				}
+			]
+		},
+		{
+			"id": 9,
+			"type": "timeseries",
+			"title": "Scanner Activity",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 20
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short"
+				}
+			},
+			"targets": [
+				{
+					"expr": "rate(scanner_runs_total{job=\"ghchk\"}[5m])",
+					"legendFormat": "runs/s"
+				},
+				{
+					"expr": "rate(scanner_errors_total{job=\"ghchk\"}[5m])",
+					"legendFormat": "errors/s"
+				},
+				{
+					"expr": "rate(notifications_sent_total{job=\"ghchk\"}[5m])",
+					"legendFormat": "notifications/s"
+				}
+			]
+		},
+		{
+			"id": 10,
+			"type": "timeseries",
+			"title": "Process Memory (RSS)",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 20
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "bytes"
+				}
+			},
+			"targets": [
+				{
+					"expr": "process_resident_memory_bytes{job=\"ghchk\"}",
+					"legendFormat": "RSS"
+				}
+			]
+		}
+	]
+}

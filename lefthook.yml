@@ -2,6 +2,8 @@ pre-push:
   jobs:
     - name: packages audit
       run: pnpm audit --audit-level=high
+    - name: run unit tests
+      run: pnpm test:unit
 
 pre-commit:
   parallel: true

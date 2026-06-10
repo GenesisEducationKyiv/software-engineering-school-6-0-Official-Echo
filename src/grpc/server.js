@@ -3,6 +3,7 @@ import { loadSync } from "@grpc/proto-loader";
 import { join } from "path";
 
 import { catchGrpcErrors } from "../errors/grpcHandler.js";
+import { logger } from "../services/logger.js";
 import {
 	confirm,
 	getSubscriptions,
@@ -68,10 +69,10 @@ export function startGrpcServer() {
 		ServerCredentials.createInsecure(),
 		(err, port) => {
 			if (err) {
-				console.error("[gRPC] Failed to start:", err.message);
+				logger.error({ err }, "[gRPC] Failed to start");
 				return;
 			}
-			console.log(`[gRPC] Server listening on port ${port}`);
+			logger.info({ port }, "[gRPC] Server listening");
 		}
 	);
 

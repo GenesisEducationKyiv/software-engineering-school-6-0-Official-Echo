@@ -7,7 +7,12 @@ import {
 	updateLastSeenTag,
 } from "../repositories/subscriptionRepository.js";
 import { getLatestRelease } from "./github.js";
-import { notificationsSentTotal, scannerRunsTotal } from "./metrics.js";
+import { logger } from "./logger.js";
+import {
+	notificationsSentTotal,
+	scannerErrorsTotal,
+	scannerRunsTotal,
+} from "./metrics.js";
 import { sendReleaseNotification } from "./notifier.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
@@ -16,19 +21,21 @@ export async function scanAllRepos() {
 	scannerRunsTotal.inc();
 
 	const repos = await findConfirmedRepos();
-	console.log(`[Scanner] Checking ${repos.length} repo(s)...`);
+	logger.info({ repoCount: repos.length }, "[Scanner] Checking repos");
 
 	for (const { repo } of repos) {
 		try {
 			await checkRepo(repo);
 		} catch (err) {
 			if (err instanceof RateLimitError) {
-				console.warn(
-					`[Scanner] Rate limited. Retry after ${err.retryAfter}s. Stopping.`
+				logger.warn(
+					{ retryAfter: err.retryAfter },
+					"[Scanner] Rate limited. Stopping."
 				);
 				break;
 			}
-			console.error(`[Scanner] Error checking ${repo}:`, err.message);
+			scannerErrorsTotal.inc();
+			logger.error({ err, repo }, "[Scanner] Error checking repo");
 		}
 	}
 }
@@ -45,15 +52,19 @@ export async function checkRepo(repo) {
 	for (const sub of subscribers) {
 		if (sub.last_seen_tag === null) {
 			await updateLastSeenTag(sub.id, latestTag);
-			console.log(
-				`[Scanner] ${repo} — ${sub.email}: first check, stored ${latestTag}`
+			logger.info(
+				{ repo, email: sub.email, tag: latestTag },
+				"[Scanner] first check, stored tag"
 			);
 			continue;
 		}
 
 		if (sub.last_seen_tag === latestTag) continue;
 
-		console.log(`[Scanner] ${repo} — ${sub.email}: NEW release ${latestTag}`);
+		logger.info(
+			{ repo, email: sub.email, tag: latestTag },
+			"[Scanner] NEW release detected"
+		);
 		await updateLastSeenTag(sub.id, latestTag);
 
 		try {
@@ -65,16 +76,19 @@ export async function checkRepo(repo) {
 			});
 			notificationsSentTotal.inc();
 		} catch (err) {
-			console.error(
-				`[Scanner] Failed to notify ${sub.email} for ${repo}:`,
-				err.message
+			scannerErrorsTotal.inc();
+			logger.error(
+				{ err, email: sub.email, repo },
+				"[Scanner] Failed to send notification"
 			);
 		}
 	}
 }
 
 export function startScanner() {
-	console.log(`[Scanner] Starting, schedule: ${CRON_SCHEDULE}`);
+	logger.info({ schedule: CRON_SCHEDULE }, "[Scanner] Starting");
 	schedule(CRON_SCHEDULE, scanAllRepos);
-	scanAllRepos().catch(console.error);
+	scanAllRepos().catch((err) =>
+		logger.error({ err }, "[Scanner] Initial scan failed")
+	);
 }

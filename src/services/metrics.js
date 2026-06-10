@@ -48,8 +48,25 @@ export const scannerRunsTotal = new Counter({
 	registers: [register],
 });
 
+// RED — Errors dimension
+export const httpErrorsTotal = new Counter({
+	name: "http_errors_total",
+	help: "Total number of HTTP error responses (4xx and 5xx)",
+	labelNames: ["method", "route", "status"],
+	registers: [register],
+});
+
+export const scannerErrorsTotal = new Counter({
+	name: "scanner_errors_total",
+	help: "Total number of errors during scanner cron runs",
+	registers: [register],
+});
+
 /**
- * Express middleware that records request count and duration.
+ * Express middleware that records RED metrics:
+ *   Rate    — http_requests_total
+ *   Errors  — http_errors_total  (4xx + 5xx)
+ *   Duration— http_request_duration_seconds
  */
 export function metricsMiddleware(req, res, next) {
 	const end = httpRequestDuration.startTimer();
@@ -58,6 +75,9 @@ export function metricsMiddleware(req, res, next) {
 		const labels = { method: req.method, route, status: res.statusCode };
 		httpRequestsTotal.inc(labels);
 		end(labels);
+		if (res.statusCode >= 400) {
+			httpErrorsTotal.inc(labels);
+		}
 	});
 	next();
 }

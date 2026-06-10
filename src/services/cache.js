@@ -1,5 +1,7 @@
 import Redis from "ioredis";
 
+import { logger } from "./logger.js";
+
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const TTL = 60 * 10;
 
@@ -39,7 +41,7 @@ export async function cacheGet(key) {
 		const val = await getRedis().get(key);
 		return val ? JSON.parse(val) : null;
 	} catch (err) {
-		console.warn("[Redis] cacheGet failed for key:", key, "-", err.message);
+		logger.warn({ err, key }, "[Redis] cacheGet failed");
 		return null;
 	}
 }
@@ -54,7 +56,7 @@ export async function cacheSet(key, value) {
 		if (!connected) return;
 		await getRedis().set(key, JSON.stringify(value), "EX", TTL);
 	} catch (err) {
-		console.warn("[Redis] cacheSet failed for key:", key, "-", err.message);
+		logger.warn({ err, key }, "[Redis] cacheSet failed");
 	}
 }
 
@@ -67,6 +69,6 @@ export async function cacheDel(key) {
 		if (!connected) return;
 		await getRedis().del(key);
 	} catch (err) {
-		console.warn("[Redis] cacheDel failed for key:", key, "-", err.message);
+		logger.warn({ err, key }, "[Redis] cacheDel failed");
 	}
 }

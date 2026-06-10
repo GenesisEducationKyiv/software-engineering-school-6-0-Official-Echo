@@ -8,9 +8,6 @@ import {
 } from "#src/errors/index.js";
 import { createSubscriptionService } from "#src/services/subscriptionService.js";
 
-// subscriptionService is now a factory — all deps injected as plain objects.
-// No vi.mock() of concrete modules needed at all.
-
 function makeService(overrides = {}) {
 	const repository = {
 		insertSubscription: vi.fn().mockResolvedValue(undefined),
@@ -18,6 +15,7 @@ function makeService(overrides = {}) {
 		confirmSubscription: vi.fn().mockResolvedValue(undefined),
 		deleteByUnsubscribeToken: vi.fn().mockResolvedValue({ changes: 1 }),
 		findAllByEmail: vi.fn().mockResolvedValue([]),
+		countSubscriptions: vi.fn().mockResolvedValue({ total: 0, confirmed: 0 }),
 		...overrides.repository,
 	};
 	const githubService = {

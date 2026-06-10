@@ -5,22 +5,12 @@ import { SubscribeError } from "../errors/constants/subscribe.js";
 import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
 import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js";
 import {
-	confirmSubscription,
-	countSubscriptions,
-} from "../repositories/subscriptionRepository.js";
-import {
 	validateConfirmToken,
 	validateEmailQuery,
 	validateSubscribeInput,
 	validateUnsubscribeToken,
 } from "../validation/index.js";
 import { confirmedSubscriptionsTotal, subscriptionsTotal } from "./metrics.js";
-
-async function refreshSubscriptionGauges() {
-	const counts = await countSubscriptions();
-	subscriptionsTotal.set(counts.total);
-	confirmedSubscriptionsTotal.set(counts.confirmed);
-}
 
 /**
  * Creates the subscription service with all infrastructure dependencies injected.
@@ -30,6 +20,7 @@ async function refreshSubscriptionGauges() {
  *     confirmSubscription: Function,
  *     deleteByUnsubscribeToken: Function,
  *     findAllByEmail: Function,
+ *     countSubscriptions: Function,
  *   },
  *   githubService: {
  *     repoExists: Function,
@@ -40,6 +31,12 @@ async function refreshSubscriptionGauges() {
  * }} deps
  */
 export function createSubscriptionService({ repository, githubService, notifier }) {
+	async function refreshSubscriptionGauges() {
+		const counts = await repository.countSubscriptions();
+		subscriptionsTotal.set(counts.total);
+		confirmedSubscriptionsTotal.set(counts.confirmed);
+	}
+
 	return {
 		/**
 		 * Subscribes an email to repo release notifications.

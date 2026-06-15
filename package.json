@@ -34,6 +34,7 @@
 		"express": "^5.2.1",
 		"http-status-codes": "^2.3.0",
 		"ioredis": "^5.10.1",
+		"kafkajs": "^2.2.4",
 		"kysely": "^0.29.0",
 		"nice-grpc-common": "^2.0.3",
 		"node-cron": "^4.2.1",

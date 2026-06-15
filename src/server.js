@@ -3,6 +3,7 @@ import { createTransport } from "nodemailer";
 import { buildApp } from "./app.js";
 import { runMigrations } from "./db/database.js";
 import { startGrpcServer } from "./grpc/server.js";
+import { createProducer } from "./kafka/producer.js";
 import * as repository from "./repositories/subscriptionRepository.js";
 import { cacheGet, cacheSet } from "./services/cache.js";
 import { createGithubService } from "./services/github.js";
@@ -12,6 +13,7 @@ import {
 	scannerErrorsTotal,
 	scannerRunsTotal,
 } from "./services/metrics.js";
+import { createNotificationService } from "./services/notificationService.js";
 import { createNotifier } from "./services/notifier.js";
 import { createScanner } from "./services/scanner.js";
 import { createSubscriptionService } from "./services/subscriptionService.js";
@@ -41,27 +43,53 @@ export async function startServer() {
 	const githubService = createGithubService(cache);
 	const notifier = createNotifier(transport);
 
+	const producer = createProducer();
+
 	const subscriptionService = createSubscriptionService({
 		repository,
 		githubService,
 		notifier,
+		producer,
 	});
 
 	const scanner = createScanner({
 		githubService,
-		notifier,
+		producer,
 		repository,
 		metrics: { scannerRunsTotal, notificationsSentTotal, scannerErrorsTotal },
 	});
 
+	const notificationService = createNotificationService({ notifier });
+
 	const httpLoggerMiddleware = createHttpLoggerMiddleware(logger);
 	const app = buildApp(subscriptionService, httpLoggerMiddleware);
 
-	const server = app.listen(PORT, () => {
+	const server = app.listen(PORT, async () => {
 		logger.info({ port: PORT }, "[HTTP] Running on port %d", PORT);
 		scanner.start();
+
+		notificationService
+			.start()
+			.catch((err) =>
+				logger.error(
+					{ err },
+					"[NotificationService] Failed to start consumer"
+				)
+			);
+
 		startGrpcServer(subscriptionService);
 	});
+
+	//Custom shutdown logic
+	const shutdown = async () => {
+		logger.info("[Server] Shutting down…");
+		await notificationService.stop();
+		await producer.disconnect();
+		server.close(() => process.exit(0));
+	};
+
+	process.once("SIGTERM", shutdown);
+	process.once("SIGINT", shutdown);
 
 	return { app, server };
 }

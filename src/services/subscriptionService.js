@@ -4,6 +4,7 @@ import { ConfirmError } from "../errors/constants/confirm.js";
 import { SubscribeError } from "../errors/constants/subscribe.js";
 import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
 import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js";
+import { EventType } from "../kafka/topics.js";
 import {
 	validateConfirmToken,
 	validateEmailQuery,
@@ -14,7 +15,13 @@ import { confirmedSubscriptionsTotal, subscriptionsTotal } from "./metrics.js";
 
 /**
  * Creates the subscription service with all infrastructure dependencies injected.
- * @param {{repository: {
+ *
+ * When a `producer` is provided the service publishes Kafka events for every
+ * mutating operation for real-time notifications. Catches and suppresses errors
+ * on inability to reach Kafka.
+ *
+ * @param {{
+ *   repository: {
  *     insertSubscription: Function,
  *     findByConfirmToken: Function,
  *     confirmSubscription: Function,
@@ -22,19 +29,32 @@ import { confirmedSubscriptionsTotal, subscriptionsTotal } from "./metrics.js";
  *     findAllByEmail: Function,
  *     countSubscriptions: Function,
  *   },
- *   githubService: {
- *     repoExists: Function,
- *   },
- *   notifier: {
- *     sendConfirmationEmail: Function,
- *   },
+ *   githubService: { repoExists: Function },
+ *   notifier: { sendConfirmationEmail: Function },
+ *   producer?: { publish: Function },
  * }} deps
  */
-export function createSubscriptionService({ repository, githubService, notifier }) {
+export function createSubscriptionService({
+	repository,
+	githubService,
+	notifier,
+	producer,
+}) {
 	async function refreshSubscriptionGauges() {
 		const counts = await repository.countSubscriptions();
 		subscriptionsTotal.set(counts.total);
 		confirmedSubscriptionsTotal.set(counts.confirmed);
+	}
+
+	/**
+	 * Publishes a Kafka event fire-and-forget.
+	 * Catches and suppresses Kafka `publish` errors.
+	 * @param {string} type
+	 * @param {object} payload
+	 */
+	function publishEvent(type, payload) {
+		if (!producer) return;
+		void producer.publish(type, payload).catch(() => {});
 	}
 
 	return {
@@ -86,6 +106,8 @@ export function createSubscriptionService({ repository, githubService, notifier 
 
 			await notifier.sendConfirmationEmail({ to: email, repo, confirmToken });
 
+			publishEvent(EventType.SUBSCRIPTION_CREATED, { email, repo });
+
 			void refreshSubscriptionGauges();
 
 			return {
@@ -117,6 +139,12 @@ export function createSubscriptionService({ repository, githubService, notifier 
 			}
 
 			await repository.confirmSubscription(token);
+
+			publishEvent(EventType.SUBSCRIPTION_CONFIRMED, {
+				email: sub.email,
+				repo: sub.repo,
+			});
+
 			void refreshSubscriptionGauges();
 			return { ok: true, message: "Subscription confirmed successfully" };
 		},
@@ -137,6 +165,8 @@ export function createSubscriptionService({ repository, githubService, notifier 
 					UnsubscribeError.NOT_FOUND
 				);
 			}
+
+			publishEvent(EventType.SUBSCRIPTION_DELETED, { token });
 
 			return { ok: true, message: "Unsubscribed successfully" };
 		},

@@ -1,166 +1,64 @@
-# System Design Document
+# System Design — GitHub Release Notifier
 
-**_Зміст_**
-
-- [System Design Document](#system-design-document)
-    - [1. Вимоги](#1-вимоги)
-        - [1.1 Функціональні вимоги](#11-функціональні-вимоги)
-        - [1.2 Нефункціональні вимоги](#12-нефункціональні-вимоги)
-        - [1.3 Обмеження та припущення](#13-обмеження-та-припущення)
-    - [2. Оцінка навантаження](#2-оцінка-навантаження)
-        - [2.1 Користувачі та підписки](#21-користувачі-та-підписки)
-        - [2.2 Трафік та пропускна здатність](#22-трафік-та-пропускна-здатність)
-        - [2.3 Зберігання даних](#23-зберігання-даних)
-        - [2.4 Redis](#24-redis)
-    - [3. High-level архітектура](#3-high-level-архітектура)
-        - [3.1 C4 — Рівень 1: Контекст системи](#31-c4--рівень-1-контекст-системи)
-        - [3.2 C4 — Рівень 2: Контейнери](#32-c4--рівень-2-контейнери)
-    - [4. Детальний дизайн компонентів](#4-детальний-дизайн-компонентів)
-        - [4.1 HTTP API](#41-http-api)
-            - [C4 — Рівень 3: Компоненти HTTP API](#c4--рівень-3-компоненти-http-api)
-            - [Middleware pipeline](#middleware-pipeline)
-            - [Потік підписки (POST /api/subscribe)](#потік-підписки-post-apisubscribe)
-        - [4.2 gRPC-сервер](#42-grpc-сервер)
-            - [Сервіс `SubscriptionService`](#сервіс-subscriptionservice)
-            - [Таблиця gRPC статусів](#таблиця-grpc-статусів)
-            - [Порт: `GRPC_PORT` (default: `50051`)](#порт-grpc_port-default-50051)
-        - [4.3 Release Scanner](#43-release-scanner)
-            - [Алгоритм сканування](#алгоритм-сканування)
-        - [4.4 База даних](#44-база-даних)
-            - [Стратегія підключення](#стратегія-підключення)
-            - [Організація SQL-запитів](#організація-sql-запитів)
-        - [4.5 Кеш](#45-кеш)
-        - [4.6 GitHub API-клієнт](#46-github-api-клієнт)
-            - [Функції](#функції)
-            - [Rate limit handling](#rate-limit-handling)
-            - [Кешування](#кешування)
-            - [Заголовок Authorization](#заголовок-authorization)
-        - [4.7 Email-нотифікатор (Nodemailer)](#47-email-нотифікатор-nodemailer)
-            - [Функції](#функції-1)
-            - [SMTP конфігурація](#smtp-конфігурація)
-        - [4.8 Метрики Prometheus](#48-метрики-prometheus)
-            - [Зареєстровані метрики](#зареєстровані-метрики)
-    - [5. Дизайн бази даних](#5-дизайн-бази-даних)
-        - [5.1 ER-діаграма](#51-er-діаграма)
-        - [5.2 Індекси та обмеження](#52-індекси-та-обмеження)
-        - [5.3 Скінченний автомат підписки](#53-скінченний-автомат-підписки)
-        - [5.4 Життєвий цикл підписки](#54-життєвий-цикл-підписки)
-    - [6. CI/CD та якість коду](#6-cicd-та-якість-коду)
-        - [6.1 GitHub Actions Pipeline](#61-github-actions-pipeline)
-        - [6.2 Pre-commit хуки (Lefthook)](#62-pre-commit-хуки-lefthook)
+Сервіс стежить за релізами GitHub-репозиторіїв та надсилає email-сповіщення підписникам. Написаний на Node.js, розгортається через `docker compose up --build` без зовнішніх залежностей.
 
 ## 1. Вимоги
 
-### 1.1 Функціональні вимоги
+**Що система повинна робити:**
 
-| #    | Вимога                                                                                                   |
-| ---- | -------------------------------------------------------------------------------------------------------- |
-| F-01 | Користувач може підписатися на email-сповіщення про нові релізи будь-якого публічного GitHub-репозиторію |
-| F-02 | Після підписки система надсилає підтверджувальний лист з унікальним токеном                              |
-| F-03 | Підписка активується лише після переходу за посиланням з листа (`/api/confirm/:token`)                   |
-| F-04 | Будь-яка підписка може бути скасована за унікальним посиланням `unsubscribe`                             |
-| F-05 | Планувальник перевіряє нові релізи кожні 15 хвилин та надсилає сповіщення                                |
-| F-06 | Система дозволяє отримати список підписок за email                                                       |
-| F-07 | Система перевіряє існування репозиторію через GitHub API перед збереженням підписки                      |
-| F-08 | Усі ті самі операції доступні через gRPC-інтерфейс                                                       |
-| F-09 | Метрики Prometheus доступні на `/metrics`                                                                |
-| F-10 | Веб-інтерфейс (`public/index.html`) надає форму підписки та список активних підписок                     |
+- Дозволяти користувачу підписатися на email-сповіщення про нові релізи будь-якого публічного GitHub-репозиторію
+- Надсилати підтверджувальний лист після підписки — активація відбувається лише після кліку на `/api/confirm/:token`
+- Давати можливість скасувати підписку за унікальним посиланням `unsubscribe`
+- Кожні 15 хвилин перевіряти нові релізи та публікувати події до Kafka; Notification Service споживає ці події та надсилає листи
+- Надавати список підписок за email
+- Перевіряти існування репозиторію через GitHub API перед збереженням
+- Дублювати всі операції через gRPC-інтерфейс
+- Публікувати метрики Prometheus на `/metrics`
+- Мати веб-форму підписки
 
-### 1.2 Нефункціональні вимоги
+**Нефункціональне:** uptime ≥ 99%, p95 latency < 500 мс, збірка відтворювана через `pnpm install --frozen-lockfile`, API захищений `X-API-Key` (крім публічних `/confirm` та `/unsubscribe`), unit-тести без зовнішніх залежностей, недоступність Kafka не призводить до помилок HTTP або зупинки сканера.
 
-| #     | Вимога                       | Значення                                                                     |
-| ----- | ---------------------------- | ---------------------------------------------------------------------------- |
-| NF-01 | **Доступність**              | ≥ 99% uptime                                                                 |
-| NF-02 | **Затримка відповіді**       | p95 < 500 мс для REST-ендпоінтів                                             |
-| NF-03 | **Відтворюваність**          | Збірка відтворювана через `pnpm install --frozen-lockfile`                   |
-| NF-04 | **Безпека**                  | API-ендпоінти захищені `X-API-Key`; публічні `/confirm` та `/unsubscribe`    |
-| NF-05 | **Спостережуваність**        | HTTP-метрики, кількість підписок, кількість надісланих листів — у Prometheus |
-| NF-06 | **Контрактна відповідність** | Усі ендпоінти точно відповідають `swagger.yaml`                              |
-| NF-07 | **Ізоляція тестів**          | Unit-тести не мають зовнішніх залежностей; `:memory:` SQLite у CI            |
-| NF-08 | **Якість коду**              | ESLint (flat config, v10) + Prettier; pre-commit через Lefthook              |
-
-### 1.3 Обмеження та припущення
-
-- **Єдиний екземпляр:** розгортання — один Node.js-процес; горизонтальне масштабування не передбачено в поточній версії
-- **SQLite як БД:** обрано свідомо. Міграція на PostgreSQL — у разі потреби у масштабуванні
-- **GitHub Public API:** без авторизації — 60 req/год; з `GITHUB_TOKEN` — 5000 req/год
-- **Docker-first:** запуск `docker compose up --build` повністю підіймає сервіс без зовнішніх залежностей
-- **Node.js ≥ 20** обов'язковий (нативний ESM, `import.meta.dirname`)
+**Обмеження:** один Node.js-процес, SQLite (міграція на PostgreSQL — при потребі масштабування), без `GITHUB_TOKEN` — 60 req/год, з токеном — 5000 req/год. Kafka в KRaft-режимі, один брокер. Node.js ≥ 20 обов'язковий.
 
 ## 2. Оцінка навантаження
 
-### 2.1 Користувачі та підписки
+Очікувана кількість активних підписок — від 1 000 до 10 000, унікальних репозиторіїв — від 200 до 2 000, нових підписок на добу — ~100, підтверджень — ~80.
 
-| Метрика                               | Значення        |
-| ------------------------------------- | --------------- |
-| Очікувана кількість активних підписок | ~1 000 — 10 000 |
-| Унікальних репозиторіїв               | ~200 — 2 000    |
-| Нових підписок на добу                | ~100            |
-| Підтверджень на добу                  | ~80             |
+REST API отримує приблизно 10 req/хв на `POST /subscribe`, 8 req/хв на `/confirm`, 5 req/хв на `/subscriptions`, 60 req/хв на `/health`. Cron-сканер при R репозиторіях робить R запитів до GitHub кожні 15 хвилин — тобто 4×R запитів на годину. Без токена це максимум ~15 репозиторіїв, з токеном — до ~1250.
 
-### 2.2 Трафік та пропускна здатність
+По email: ~50 нових релізів на добу × ~5 підписників = ~250 release-листів + ~100 confirmation-листів.
 
-**REST API:**
+SQLite: одна підписка ~300 байт, 10 000 підписок — ~3 МБ, зростання за рік — ~11 МБ. Redis кешує відповіді GitHub API з TTL 10 хвилин; при його відсутності сервіс продовжує роботу. Kafka: тема `ghchk-events` (один партишн, retention 7 днів), ~250 повідомлень `release.detected` + ~180 subscription-подій на добу, consumer group `ghchk-notification-service`.
 
-- POST /api/subscribe ~10 req/хв
-- GET /api/confirm/:t ~8 req/хв
-- GET /api/subscriptions ~5 req/хв
-- GET /health ~60 req/хв
+## 3. Архітектура (C4)
 
-**Cron Scanner:**
-
-- Кількість репозиторіїв для перевірки: R
-- GitHub API запитів за один run: R (один GET /repos/{owner}/{repo}/releases/latest)
-- За 1 годину: 4 \* R запитів до GitHub
-- Ліміт без токена: 60 req/год → макс. ~15 репозиторіїв
-- Ліміт з GITHUB_TOKEN: 5000 req/год → макс. ~1250 репозиторіїв
-
-**Електронна пошта:**
-
-- Нових релізів на добу: ~50
-- Середня кількість підписників/repo: ~5
-- Email на добу: ~250
-- SMTP-запитів на добу: ~250 + ~100 (підтвердження)
-
-### 2.3 Зберігання даних
-
-- Одна підписка в SQLite: ~300 байт
-- 10 000 підписок: ~3 МБ
-- Ріст за рік (100 нових/д): ~11 МБ
-
-### 2.4 Redis
-
-- TTL ключів: 10 хвилин
-- Кеш результатів `getLatestRelease` та `repoExists`
-- За відсутності Redis сервіс продовжує роботу
-
-## 3. High-level архітектура
-
-### 3.1 C4 — Рівень 1: Контекст системи
+### Рівень 1 — Контекст системи
 
 ```mermaid
 C4Context
     title Контекст системи
 
     Person(user, "Кінцевий користувач", "Підписується на релізи через веб-форму або gRPC")
-    Person(infra, "DevOps", "Зчитує метрики Prometheus")
+    Person(infra, "DevOps", "Зчитує метрики Prometheus, переглядає логи в Kibana")
 
-    System(notifier, "GitHub Release Notifier", "Node.js-сервіс. Керує підписками, сканує релізи GitHub, надсилає email-сповіщення")
+    System(notifier, "GitHub Release Notifier", "Node.js-сервіс. Керує підписками, сканує релізи GitHub, публікує події до Kafka, надсилає email-сповіщення")
 
     System_Ext(github, "GitHub API", "Публічний REST API. Перевірка існування репозиторію, отримання останнього релізу")
     System_Ext(smtp, "SMTP-сервер", "Доставка підтверджень та нотифікацій")
     System_Ext(redis, "Redis", "Опціональний кеш відповідей GitHub API")
-    System_Ext(prometheus, "Prometheus + Grafana", "Збирає метрики з /metrics")
+    System_Ext(kafka, "Kafka", "Message broker для декаплінгу сканера від email-доставки")
+    System_Ext(observability, "Prometheus + Grafana + Elasticsearch + Kibana", "Збирає метрики та логи")
 
     Rel(user, notifier, "Підписується / скасовує підписку / переглядає підписки", "HTTP REST / gRPC")
     Rel(notifier, github, "Перевіряє repo, отримує releases", "HTTP REST")
     Rel(notifier, smtp, "Надсилає листи", "SMTP/TLS")
     Rel(notifier, redis, "Кешує відповіді API", "Redis protocol")
+    Rel(notifier, kafka, "Публікує події / споживає події", "Kafka protocol")
     Rel(infra, notifier, "Зчитує метрики", "HTTP GET /metrics")
-    Rel(notifier, prometheus, "Метрики збираються", "Pull / Prometheus scrape")
+    Rel(notifier, observability, "Метрики та логи збираються", "Pull/scrape + pino-elasticsearch")
 ```
 
-### 3.2 C4 — Рівень 2: Контейнери
+### Рівень 2 — Контейнери
 
 ```mermaid
 C4Container
@@ -171,81 +69,86 @@ C4Container
     Container_Boundary(app, "GitHub Release Notifier Docker container") {
         Container(web, "HTTP API", "Express / Node.js", "Обробляє REST-запити підписок, health, metrics")
         Container(grpc, "gRPC Server", "@grpc/grpc-js", "Альтернативний інтерфейс")
-        Container(scanner, "Release Scanner", "node-cron", "Кожні 15 хв перевіряє нові релізи та надсилає сповіщення")
-        Container(db_layer, "DB Layer", "better-sqlite3", "Синхронний SQLite, авто-міграції при старті")
+        Container(scanner, "Release Scanner", "node-cron", "Кожні 15 хв перевіряє нові релізи та публікує release.detected до Kafka")
+        Container(kafka_producer, "Kafka Producer", "kafkajs", "Публікує типізовані події до ghchk-events. Lazy connect, graceful degradation")
+        Container(notification_svc, "Notification Service", "kafkajs consumer", "Споживає release.detected, надсилає release-листи через Nodemailer")
+        Container(db_layer, "DB Layer", "Kysely + better-sqlite3", "Типобезпечні запити, WAL-режим, авто-міграції при старті")
         Container(cache_layer, "Cache Layer", "ioredis", "Redis-кеш; при недоступності — graceful no-op")
         Container(github_svc, "GitHub Service", "axios", "HTTP-клієнт GitHub API")
         Container(notifier_svc, "Notifier Service", "Nodemailer", "Генерує та надсилає електронні листи")
-        Container(metrics_svc, "Metrics Service", "prom-client", "Метрики Prometheus")
+        Container(metrics_svc, "Metrics Service", "prom-client", "Метрики Prometheus (RED + business)")
+        Container(logger_svc, "Logger", "pino", "Структуровані JSON-логи; pino-elasticsearch для Kibana")
     }
 
     ContainerDb(sqlite, "SQLite DB", "better-sqlite3", "Файл app.db: підписки, токени, теги релізів")
     ContainerDb(redis_db, "Redis", "ioredis", "Кеш GitHub API-відповідей")
+    ContainerDb(kafka_db, "Kafka", "apache/kafka:3.9 KRaft", "Тема ghchk-events: всі доменні події")
 
     System_Ext(github_api, "GitHub API")
     System_Ext(smtp_server, "SMTP Server")
+    System_Ext(es, "Elasticsearch", "Приймає структуровані логи від pino-elasticsearch")
 
     Rel(user, web, "HTTP REST", "HTTP :3000")
     Rel(user, grpc, "gRPC", ":50051")
     Rel(web, db_layer, "CRUD")
     Rel(grpc, db_layer, "CRUD")
+    Rel(web, kafka_producer, "publishEvent(subscription.*)")
+    Rel(grpc, kafka_producer, "publishEvent(subscription.*)")
     Rel(scanner, db_layer, "READ repos / subscribers, WRITE last_seen_tag")
+    Rel(scanner, github_svc, "getLatestRelease()")
+    Rel(scanner, kafka_producer, "publish(release.detected)")
+    Rel(kafka_producer, kafka_db, "produce → ghchk-events")
+    Rel(notification_svc, kafka_db, "consume ← ghchk-events")
+    Rel(notification_svc, notifier_svc, "sendReleaseNotification()")
     Rel(web, github_svc, "repoExists()")
     Rel(grpc, github_svc, "repoExists()")
-    Rel(scanner, github_svc, "getLatestRelease()")
     Rel(github_svc, cache_layer, "cacheGet / cacheSet")
     Rel(github_svc, github_api, "GET /repos/.../releases/latest", "HTTP")
     Rel(web, notifier_svc, "sendConfirmationEmail()")
     Rel(grpc, notifier_svc, "sendConfirmationEmail()")
-    Rel(scanner, notifier_svc, "sendReleaseNotification()")
     Rel(notifier_svc, smtp_server, "SMTP/TLS")
     Rel(db_layer, sqlite, "SQL queries")
     Rel(cache_layer, redis_db, "Redis protocol")
     Rel(web, metrics_svc, "metricsMiddleware + /metrics")
+    Rel(logger_svc, es, "pino-elasticsearch transport")
 ```
 
-## 4. Детальний дизайн компонентів
+## 4. Компоненти
 
-### 4.1 HTTP API
+### 4.1 Composition Root та Dependency Injection
 
-**Файли:** `src/index.js`, `src/routes/subscriptions.js`, `src/middleware/`
+Система побудована на принципі інверсії залежностей: кожен сервіс отримує свої залежності ззовні через параметри фабричної функції, а не імпортує конкретні реалізації напряму.
 
-#### C4 — Рівень 3: Компоненти HTTP API
+`src/server.js` — єдине місце, де збираються всі конкретні реалізації (транспорт, кеш, репозиторій, GitHub-клієнт, Kafka producer). `src/index.js` суто запускає застосунок. `src/app.js` — чистий Express-додаток, що приймає готовий `subscriptionService` і не знає, яка за ним стоїть інфраструктура. Це дозволяє інтеграційним тестам зібрати граф об'єктів без Kafka, cron та відкриття порту.
+
+### 4.2 HTTP API
+
+Express 5 — через нативну підтримку async/await у обробниках помилок: необроблений rejected promise автоматично потрапляє до `errorHandler`, тому маршрути не потребують власного `try/catch`.
+
+Middleware pipeline: логування → метрики → статика → публічні маршрути → API-auth → бізнес-маршрути → централізований обробник помилок. Кожен шар відповідає за одну задачу.
+
+#### Рівень 3 — Компоненти HTTP API
 
 ```mermaid
 C4Component
     title Компоненти HTTP API
 
     Container_Boundary(web, "HTTP API") {
-        Component(app, "Express App", "src/index.js", "Точка входу: middleware pipeline, маршрутизація, запуск сервера та gRPC")
-        Component(router, "Subscriptions Router", "src/routes/subscriptions.js", "Всі /api/* ендпоінти: subscribe, confirm, unsubscribe, subscriptions")
-        Component(auth_mw, "API Key Auth Middleware", "src/middleware/auth.js", "Перевіряє X-API-Key header; пропускає /confirm та /unsubscribe")
-        Component(validate_mw, "Validate Middleware", "src/middleware/validate.js", "validate([fields]) та validateEmail — перевірка вхідних даних")
-        Component(error_mw, "Error Handler", "src/middleware/errorHandler.js", "Централізована обробка помилок")
-        Component(metrics_mw, "Metrics Middleware", "src/services/metrics.js", "metricsMiddleware: записує http_requests_total та http_request_duration_seconds")
-        Component(static_srv, "Static Files", "public/index.html", "Веб-форма підписки та список підписок")
+        Component(app, "Express App", "src/app.js", "buildApp(subscriptionService): middleware pipeline, маршрутизація. Не знає про transport/DB/cache/Kafka")
+        Component(server, "Server bootstrap", "src/server.js", "Composition root: збирає всі конкретні реалізації та передає в buildApp")
+        Component(router, "Subscriptions Router", "src/routes/subscriptions.js", "buildSubscriptionsRouter(service): 4 REST-ендпоінти. Делегує сервісу, пробрасує помилки через next()")
+        Component(auth_mw, "API Key Auth Middleware", "src/middleware/auth.js", "Перевіряє X-API-Key. Якщо API_KEY не задано — auth вимкнено")
+        Component(error_mw, "HTTP Error Handler", "src/errors/httpHandler.js", "Перетворює AppError-ієрархію у HTTP-статуси через MAP. Логує 5xx через pino")
+        Component(metrics_mw, "Metrics Middleware", "src/services/metrics.js", "metricsMiddleware: RED-метрики (rate, errors, duration) на кожен запит")
+        Component(logger_mw, "HTTP Logger Middleware", "src/services/logger.js", "createHttpLoggerMiddleware: структурований лог на кожну відповідь")
     }
 
+    Rel(server, app, "buildApp(subscriptionService, httpLoggerMiddleware)")
+    Rel(app, logger_mw, "app.use(httpLoggerMiddleware)")
     Rel(app, metrics_mw, "app.use(metricsMiddleware)")
-    Rel(app, auth_mw, "app.use('/api', ...)")
-    Rel(app, router, "app.use('/api', subscriptionsRouter)")
-    Rel(app, error_mw, "app.use(errorHandler)")
-    Rel(router, validate_mw, "validate(['email','repo'])")
-    Rel(router, validate_mw, "validateEmail")
-```
-
-#### Middleware pipeline
-
-```
-Запит →
-metricsMiddleware →
-Static / Health / Metrics →
-/api →
-Auth Check →
-validate →
-Router Handler →
-DB/GitHub/Notifier →
-За помилки errorHandler
+    Rel(app, auth_mw, "app.use('/api', apiKeyAuth) — крім /confirm, /unsubscribe")
+    Rel(app, router, "app.use('/api', buildSubscriptionsRouter(...))")
+    Rel(app, error_mw, "app.use(httpErrorHandler)")
 ```
 
 #### Потік підписки (POST /api/subscribe)
@@ -255,266 +158,159 @@ sequenceDiagram
     participant C as Client
     participant MW as Middleware
     participant R as Router
-    participant DB as DB Layer
+    participant SVC as SubscriptionService
     participant GH as GitHub Service
+    participant DB as Repository
     participant NF as Notifier
+    participant KP as Kafka Producer
 
     C->>MW: POST /api/subscribe {email, repo}
     MW->>MW: apiKeyAuth (X-API-Key)
-    MW->>MW: validate(['email','repo'])
-    MW->>MW: validateEmail
     MW->>R: next()
-    R->>GH: isValidRepoFormat(repo)
-    R->>GH: repoExists(repo)
-    GH-->>R: true / false / throws
-    R->>DB: INSERT INTO subscriptions
-    DB-->>R: ok / UNIQUE constraint
-    R->>NF: sendConfirmationEmail({email, repo, confirmToken})
-    NF-->>R: sent (fire-and-forget)
+    R->>SVC: subscribe(email, repo)
+    SVC->>SVC: validateSubscribeInput (Zod)
+    SVC->>GH: repoExists(repo)
+    GH-->>SVC: true / false / throws RateLimitError
+    SVC->>DB: insertSubscription(email, repo, tokens)
+    DB-->>SVC: ok / UNIQUE constraint → ConflictError
+    SVC->>NF: sendConfirmationEmail (fire-and-forget)
+    SVC->>KP: publish(subscription.created) [fire-and-forget]
+    SVC-->>R: { ok: true, message }
     R-->>C: 200 {message}
 ```
 
-### 4.2 gRPC-сервер
+### 4.3 gRPC-сервер
 
-**Файли:** `src/grpc/server.js`, `proto/notifier.proto`
+gRPC-сервер — адаптер поверх `subscriptionService`, такий же, що і HTTP API. Обидва протоколи отримують однаковий об'єкт від composition root без дублювання бізнес-логіки.
 
-#### Сервіс `SubscriptionService`
+`catchGrpcErrors` — декоратор, що перехоплює `AppError`-ієрархію і перетворює її на gRPC-статуси через `Map<AppError, gRPC.Status>`.
 
-```
-service SubscriptionService {
-  rpc Subscribe       (SubscribeRequest)       returns (SubscribeResponse);
-  rpc Confirm         (ConfirmRequest)         returns (ConfirmResponse);
-  rpc Unsubscribe     (UnsubscribeRequest)     returns (UnsubscribeResponse);
-  rpc GetSubscriptions(GetSubscriptionsRequest) returns (GetSubscriptionsResponse);
-}
-```
+### 4.4 Release Scanner
 
-#### Таблиця gRPC статусів
+Сканер вирішує ключову задачу: не надіслати лист про реліз, що вже існував до підписки. `last_seen_tag = NULL` означає, що користувачу ще повідомлення не було надіслано ніколи — тег зберігається, але подія до Kafka не публікується. Подія публікується лише коли тег змінився від попередньо збереженого.
 
-| Ситуація                   | gRPC статус          |
-| -------------------------- | -------------------- |
-| Відсутній email/repo       | `INVALID_ARGUMENT`   |
-| Невалідний email           | `INVALID_ARGUMENT`   |
-| Невалідний формат repo     | `INVALID_ARGUMENT`   |
-| Repo не знайдено на GitHub | `NOT_FOUND`          |
-| GitHub rate limit          | `RESOURCE_EXHAUSTED` |
-| Підписка вже існує         | `ALREADY_EXISTS`     |
-| Помилка БД                 | `INTERNAL`           |
-| Токен не знайдено          | `NOT_FOUND`          |
-
-#### Порт: `GRPC_PORT` (default: `50051`)
-
-### 4.3 Release Scanner
-
-**Файли:** `src/services/scanner.js`
-
-#### Алгоритм сканування
+При rate limit від GitHub ітерація зупиняється (`break`) — усі наступні запити також провалились би до скидання вікна, тож продовжувати марно.
 
 ```mermaid
 flowchart TD
     A([Cron trigger кожні 15 хв]) --> B[scannerRunsTotal.inc]
-    B --> C[SELECT DISTINCT repo FROM subscriptions WHERE confirmed = 1]
+    B --> C[SELECT DISTINCT repo WHERE confirmed = 1]
     C --> D{repos.length > 0?}
     D -- ні --> Z([End])
     D -- так --> E[Для кожного repo]
-    E --> F[getLatestRelease - repo]
+    E --> F[getLatestRelease]
     F --> G{GitHub rate limit?}
-    G -- так --> H[Зупинити ітерацію — break]
+    G -- так --> H[break — зупинити ітерацію]
     G -- ні --> I{latestTag is null?}
     I -- так --> E
-    I -- ні --> J[SELECT subscribers WHERE repo = ? AND confirmed = 1]
+    I -- ні --> J[SELECT subscribers WHERE confirmed = 1]
     J --> K[Для кожного subscriber]
     K --> L{last_seen_tag = null?}
-    L -- так --> M[UPDATE last_seen_tag = latestTag - перший запис]
+    L -- так --> M[UPDATE last_seen_tag — перша фіксація, подія не публікується]
     M --> K
     L -- ні --> N{last_seen_tag = latestTag?}
     N -- так --> K
-    N -- ні --> O[UPDATE last_seen_tag = latestTag]
-    O --> P[sendReleaseNotification - notificationsSentTotal.inc]
+    N -- ні --> O[UPDATE last_seen_tag]
+    O --> P[producer.publish release.detected — notificationsSentTotal.inc]
     P --> K
     K --> E
     E --> Z
 ```
 
-_Примітка: SQL запити скорочено_
+### 4.5 Message Broker (Kafka)
 
-**Ключові властивості:**
+Kafka введено для декаплінгу між виявленням релізу (сканер) та доставкою email (Notification Service). До цього сканер викликав `notifier.sendReleaseNotification` напряму — тобто повільний SMTP-виклик знаходився всередині cron-циклу. Тепер сканер лише публікує подію.
 
-- Якщо `last_seen_tag IS NULL` — перший запис, нотифікація не надсилається
-- При rate limit від GitHub ітерація зупиняється, щоб не витрачати квоту
-- При помилці надсилання листа до одного підписника — продовжуємо до наступного
-- Розклад налаштовується через `CRON_SCHEDULE`
+Чому Kafka, а не Redis Pub/Sub? Kafka зберігає повідомлення на диск з retention 7 днів — consumer може перечитати пропущені події після відновлення. Redis Pub/Sub не запам'ятовує взагалі.
 
-### 4.4 База даних
+Всі події публікуються до теми `ghchk-events`. Ключ — `repo` для `release.detected` або `email` для subscription-подій, що гарантує порядок у межах одного ключа.
 
-**Файли:** `src/db/database.js`, `src/db/queries/`
+| Тип події                | Публікує            | Споживає             | Ціль                         |
+| ------------------------ | ------------------- | -------------------- | ---------------------------- |
+| `subscription.created`   | SubscriptionService | —                    | Аудит / майбутні споживачі   |
+| `subscription.confirmed` | SubscriptionService | —                    | Аудит / майбутні споживачі   |
+| `subscription.deleted`   | SubscriptionService | —                    | Аудит / майбутні споживачі   |
+| `release.detected`       | Release Scanner     | Notification Service | Надсилання email-нотифікації |
 
-#### Стратегія підключення
-
-```mermaid
-flowchart LR
-    A[getDb called] --> B{db already initialized?}
-    B -- так --> C[Return existing instance]
-    B -- ні --> D[mkdirSync data dir]
-    D --> E[new Database DB_PATH]
-    E --> F[PRAGMA journal_mode = WAL]
-    F --> G[PRAGMA foreign_keys = ON]
-    G --> C
-```
-
-**Ключові властивості:**
-
-- Для єдиного з'єднання впродовж усього виконання було використано патерн Singleton.
-- WAL-режим дозволяє одночасне читання кількома читачами при одному записувачі.
-- Авто-міграція запускається при старті сервісу, створює таблиці якщо не існують.
-
-#### Організація SQL-запитів
-
-Усі SQL-рядки винесені в окремі модулі:
-
-<details open>
-<summary><strong>src/db/queries</strong></summary>
-
-<details>
-<summary><code>database.js</code></summary>
-
-- CREATE_TABLE
-
-</details>
-
-<details>
-<summary><code>subscription.js</code></summary>
-
-- INSERT
-- CONFIRM_BY_TOKEN
-- DELETE_BY_TOKEN
-- GET_BY_EMAIL
-
-</details>
-
-<details>
-<summary><code>repo.js</code></summary>
-
-- GET_CONFIRMED_REPOS
-- GET_CONFIRMED_SUBSCRIBERS_BY_REPO
-- UPDATE_LAST_SEEN_TAG
-
-</details>
-
-</details>
-
-Це покращує читабельність, дозволяє легко знайти та змінити будь-який запит.
-
-### 4.5 Кеш
-
-**Файли:** `src/services/cache.js`
+**Kafka Producer** (`src/kafka/producer.js`) — фабрика `createProducer()` з методами `connect()` (ідемпотентне), `disconnect()` (при `SIGTERM`/`SIGINT`) та `publish(type, payload)` (lazy connect при першому виклику; помилки перехоплюються і логуються як `warn`, назовні не пробрасуються).
 
 ```mermaid
 flowchart LR
-    A[Виклик cacheGet/cacheSet/cacheDel] --> B{connected to Redis?}
-    B -- так --> C[Виконати Redis-операцію]
-    C --> D{Помилка?}
-    D -- так --> E[console.warn + return null/void]
-    D -- ні --> F[Повернути результат]
-    B -- ні --> G[return null/void - без помилки]
+    A[publish called] --> B{connected?}
+    B -- ні --> C[connect to broker]
+    C --> D{connect ok?}
+    D -- ні --> E[logger.warn — return void]
+    D -- так --> F[producer.send to ghchk-events]
+    B -- так --> F
+    F --> G{send ok?}
+    G -- ні --> H[logger.warn — return void]
+    G -- так --> I[logger.debug — return void]
 ```
 
-**Ключові властивості:**
+**Notification Service** (`src/services/notificationService.js`) — фабрика `createNotificationService({ notifier })` з методами `start()` (підключається до Kafka, запускає `consumer.run()`), `stop()` та `handleEvent(event)` — чиста функція обробки події, публічна для unit-тестування без Kafka.
 
-- Сервіс гнучко працює як з Redis, так і без нього
-- За недоступності Redis GitHub API завжди викликається напряму
-- TTL кешу на 10 хвилин
-- `connected` флаг управляється через події Redis `on('error')` та `on('ready')`
-
-### 4.6 GitHub API-клієнт
-
-**Файли:** `src/services/github.js`
-
-#### Функції
-
-| Функція                   | Опис                                                          |
-| ------------------------- | ------------------------------------------------------------- |
-| `isValidRepoFormat(repo)` | Синхронна валідація формату `owner/repo`                      |
-| `repoExists(repo)`        | GET `/repos/{owner}/{repo}` → true/false/throw                |
-| `getLatestRelease(repo)`  | GET `/repos/{owner}/{repo}/releases/latest` → tag string/null |
-
-#### Rate limit handling
-
-При HTTP 429 обидві функції кидають об'єкт:
-
-```js
-{ status: 429, retryAfter: Number(headers['retry-after']) }
+```mermaid
+flowchart TD
+    A[Kafka message arrives] --> B[JSON.parse]
+    B --> C{parse ok?}
+    C -- ні --> D[logger.error — skip message]
+    C -- так --> E{event.type?}
+    E -- release.detected --> F{payload valid?}
+    F -- ні --> G[logger.warn — return]
+    F -- так --> H[notifier.sendReleaseNotification]
+    H --> I{ok?}
+    I -- ні --> J[throw — outer catch logs error, skips message]
+    I -- так --> K[logger.info — done]
+    E -- subscription.* --> L[logger.debug — skip]
+    E -- unknown --> M[logger.warn — skip]
 ```
 
-Caller (`router` або `scanner`) вирішує як реагувати:
+Помилки `sendReleaseNotification` не зупиняють consumer: `eachMessage` обгорнутий у `try/catch`, при помилці логується `error` і повідомлення пропускається. Kafkajs при необробленому exception у `eachMessage` призупиняє споживання partition\`у — тому пропускати краще, ніж зупиняти весь consumer через один SMTP timeout.
 
-- Router → HTTP 429 клієнту
-- Scanner → `break` з ітерацій
+При недоступності Kafka HTTP API продовжує приймати підписки, сканер продовжує перевіряти релізи, email-доставка тимчасово не відбувається. Після відновлення consumer перечитає пропущені повідомлення завдяки retention.
 
-#### Кешування
+### 4.6 База даних
 
-Перед GitHub API запитом → `cacheGet(key)`\
-Після успішної відповіді → `cacheSet(key, data)`\
-Змінна `key` = `github:{endpoint}:{repo}`
+SQL-запити живуть у `src/repositories/`, повністю відокремлені від бізнес-логіки.
 
-#### Заголовок Authorization
+Singleton через module-level змінну забезпечує одне з'єднання на весь процес. WAL-режим дозволяє одночасне читання кількома читачами при одному записувачі.
 
-При наявності `GITHUB_TOKEN` передається як `Authorization: Bearer {token}` через типовий `axios.create`.
+Міграції відбуваються автоматично при старті через Kysely Schema Builder.
 
-### 4.7 Email-нотифікатор (Nodemailer)
+### 4.7 Кеш (Redis)
 
-**Файли:** `src/services/notifier.js`
+Кеш — опціональний шар, не критичний шлях. `cacheGet` завжди повертає `null` замість помилки, `cacheSet` мовчки нічого не робить при недоступному Redis. Прапорець `connected` керується через `on('ready')` та `on('error')`, при відновленні кеш вмикається автоматично.
 
-#### Функції
+### 4.8 GitHub API-клієнт
 
-**`sendConfirmationEmail({ email, repo, confirmToken })`**
+Єдине місце звернення до зовнішнього API. Клієнт перетворює HTTP 429 на `RateLimitError` (з полем `retryAfter`) або повертає `false`/`null` для 404, caller вирішує що з цим робити. Кешує за ключами `repo:exists:{repo}` і `repo:release:{repo}`.
 
-Лист містить:
+### 4.9 Email-нотифікатор (Nodemailer)
 
-- Пояснення підписки
-- Посилання `{BASE_URL}/api/confirm/{confirmToken}` для підтвердження
+Шаблони листів у теці `emails` — чисті функції, що повертають `{to, subject, text, html}`. Transport injected ззовні — у тестах `{ sendMail: vi.fn() }`, у продакшені `createTransport(smtpConfig)`.
 
-**`sendReleaseNotification({ email, repo, tag, unsubscribeToken })`**
+`sendConfirmationEmail` викликається безпосередньо з `subscriptionService` (не через Kafka — підтвердження треба надіслати синхронно). `sendReleaseNotification` тепер викликається виключно з Notification Service після отримання `release.detected` з Kafka.
 
-Лист містить:
+### 4.10 Логування (Pino)
 
-- Назва релізу та тег
-- Посилання на реліз на GitHub
-- Посилання `{BASE_URL}/api/unsubscribe/{unsubscribeToken}` для відписки
+У `development` — `pino-pretty` з кольорами; у продакшені — stdout JSON + `pino-elasticsearch` якщо задано `ELASTICSEARCH_URL`. Умова закладена в `buildTargets()`, що виключає помилку «pretty в продакшені». Kafka-клієнт підключений до того самого `logger` через `logCreator`. `authorization`, `x-api-key`, `password` автоматично замінюються на `[REDACTED]`. HTTP-логер вибирає рівень автоматично: `info` для 2xx/3xx, `warn` для 4xx, `error` для 5xx.
 
-#### SMTP конфігурація
+### 4.11 Метрики Prometheus
 
-| Змінна        | Значення за замовчуванням     |
-| ------------- | ----------------------------- |
-| `SMTP_HOST`   | `smtp.ethereal.email`         |
-| `SMTP_PORT`   | `587`                         |
-| `SMTP_SECURE` | `false`                       |
-| `SMTP_USER`   | —                             |
-| `SMTP_PASS`   | —                             |
-| `SMTP_FROM`   | `noreply@github-notifier.dev` |
+| Метрика                         | Тип       | Лейбли                | Опис                                      |
+| ------------------------------- | --------- | --------------------- | ----------------------------------------- |
+| `http_requests_total`           | Counter   | method, route, status | Кількість HTTP-запитів                    |
+| `http_request_duration_seconds` | Histogram | method, route, status | Тривалість HTTP-запитів                   |
+| `http_errors_total`             | Counter   | method, route, status | HTTP-помилки (4xx + 5xx)                  |
+| `subscriptions_total`           | Gauge     | —                     | Загальна кількість підписок в БД          |
+| `confirmed_subscriptions_total` | Gauge     | —                     | Кількість підтверджених підписок          |
+| `notifications_sent_total`      | Counter   | —                     | Надіслано release.detected подій до Kafka |
+| `scanner_runs_total`            | Counter   | —                     | Запусків cron-сканера                     |
+| `scanner_errors_total`          | Counter   | —                     | Непередбачені помилки сканера             |
 
-Транспорт створюється щоразу (`createTransport()` всередині кожної функції), що дозволяє легко замінити SMTP без перезапуску.
+Плюс усі Node.js метрики від `prom-client.collectDefaultMetrics`. `scanner_errors_total` дозволяє налаштувати алерт при деградації фонового процесу.
 
-### 4.8 Метрики Prometheus
-
-**Файли:** `src/services/metrics.js`
-
-#### Зареєстровані метрики
-
-| Метрика                         | Тип       | Лейбли                | Опис                             |
-| ------------------------------- | --------- | --------------------- | -------------------------------- |
-| `http_requests_total`           | Counter   | method, route, status | Кількість HTTP-запитів           |
-| `http_request_duration_seconds` | Histogram | method, route, status | Тривалість HTTP-запитів          |
-| `subscriptions_total`           | Gauge     | —                     | Загальна кількість підписок в БД |
-| `confirmed_subscriptions_total` | Gauge     | —                     | Кількість підтверджених підписок |
-| `notifications_sent_total`      | Counter   | —                     | Надіслано release-листів         |
-| `scanner_runs_total`            | Counter   | —                     | Запусків cron-сканера            |
-
-Плюс усі Node.js метрики від `prom-client.collectDefaultMetrics`, зокрема `heap`, `event loop lag`, `CPU` тощо.
-
-## 5. Дизайн бази даних
-
-### 5.1 ER-діаграма
+## 5. База даних
 
 ```mermaid
 erDiagram
@@ -530,79 +326,51 @@ erDiagram
     }
 ```
 
-### 5.2 Індекси та обмеження
-
-```sql
-UNIQUE(email, repo)          -- запобігає дублікатам підписок
-UNIQUE(confirm_token)        -- кожна підписка має унікальний токен підтвердження
-UNIQUE(unsubscribe_token)    -- кожна підписка має унікальний токен відписки
-```
-
-### 5.3 Скінченний автомат підписки
+Обмеження: `UNIQUE(email, repo)` — запобігає дублікатам, `UNIQUE(confirm_token)` та `UNIQUE(unsubscribe_token)` — унікальність токенів.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: "POST /api/subscribe"
-    Pending --> Confirmed: "GET /api/confirm/#58;token"
-    Pending --> Deleted: "GET /api/unsubscribe/#58;token"
-    Confirmed --> Deleted: "GET /api/unsubscribe/#58;token"
+    Pending --> Confirmed: "GET /api/confirm/:token"
+    Pending --> Deleted: "GET /api/unsubscribe/:token"
+    Confirmed --> Deleted: "GET /api/unsubscribe/:token"
     Confirmed --> Confirmed: "Scanner оновлює last_seen_tag"
     Deleted --> [*]
 ```
 
-### 5.4 Життєвий цикл підписки
+Життєвий цикл: Pending (`confirmed = 0`, лист надіслано, подія `subscription.created` до Kafka) → Confirmed (`confirmed = 1`, подія `subscription.confirmed` до Kafka) → перша перевірка сканера (`last_seen_tag = NULL`, тег зберігається, Kafka-подія не публікується) → Active (`release.detected` до Kafka при зміні тега, Notification Service відправляє email).
 
-1. **Pending** — `confirmed = 0`, лист надіслано, очікуємо підтвердження
-2. **Confirmed** — `confirmed = 1`, Scanner включає до перевірки
-3. **First scan** — `last_seen_tag = NULL` → встановлюється поточний тег, лист не надсилається
-4. **Active** — `last_seen_tag != NULL` → лист надсилається лише при зміні тега
+## 6. Стійкість до збоїв
 
-## 6. CI/CD та якість коду
+**Kafka** — при недоступності брокера `producer.publish()` завжди повертається без помилки. Consumer не стартує (помилка логується), але HTTP API продовжує нормально. Після відновлення consumer перечитає пропущені `release.detected` завдяки retention та збереженому offset у consumer group.
 
-### 6.1 GitHub Actions Pipeline
+**Redis** — всі операції кешу загорнуті в `try/catch` і повертають `null`/`void`. При відновленні кеш вмикається автоматично.
+
+**GitHub API 429** — HTTP повертає 429 клієнту; сканер зупиняє поточний run (`break`) і чекає наступного cron-тіку. Без `GITHUB_TOKEN` це означає максимум ~15 репозиторіїв до вичерпання квоти.
+
+**SMTP** — підписка записується в БД і подія до Kafka публікується. Якщо Notification Service consumer отримує помилку при відправці, логує її та пропускає повідомлення (offset commit відбувається). Kafka retention дозволяє вручну перечитати при необхідності.
+
+**SQLite** — WAL-режим усуває більшість блокувань. Поточна архітектура не підтримує горизонтальне масштабування; при потребі — міграція на PostgreSQL або інші рішення.
+
+**Збій сканера** — сканер і HTTP-сервер різні async-цикли в одному процесі. Необроблена помилка логується через `logger.error` і не крашить процес завдяки `catch` на рівні `cron.schedule`.
+
+**Elasticsearch** — при недоступності `pino-elasticsearch` падає тихо; stdout-транспорт продовжує логувати у stdout контейнера.
+
+## 7. CI/CD та якість коду
+
+Чотири незалежних workflow запускаються паралельно на кожен push/PR:
 
 ```mermaid
 flowchart LR
-    PR([Pull Request / Push]) --> L[Job: Lint & Format]
-    PR --> T[Job: Test]
+    PR([Push / Pull Request]) --> L[ci.yml: Lint & Format]
+    PR --> U[unit.yml: Unit Tests]
+    PR --> I[integration.yml: Integration Tests in Docker]
+    PR --> E[e2e.yml: E2E Tests in Docker + Playwright]
 
-    L --> L1[pnpm install]
-    L1 --> L2[pnpm lint - ESLint flat config v10]
-    L2 --> L3[pnpm format:check - Prettier]
-
-    T --> T1[pnpm install]
-    T1 --> T2[sudo apt install python3 make g++]
-    T2 --> T3[pnpm test:ci]
-    T3 --> T4[Vitest --run --coverage --reporter dot]
-    T4 --> T5[DB_PATH=:memory: NODE_ENV=test]
+    L --> L1[pnpm lint + format:check]
+    U --> U1[pnpm test:unit — coverage upload]
+    I --> I1[docker compose -f docker-compose.integration.yml]
+    I1 --> I2[coverage-integration upload]
+    E --> E1[docker compose -f docker-compose.e2e.yml]
+    E1 --> E2[playwright-report upload]
 ```
-
-Обидві роботи запускаються паралельно.
-
-### 6.2 Pre-commit хуки (Lefthook)
-
-```yaml
-# lefthook.yml
-pre-commit:
-    parallel: true
-    commands:
-        lint:
-            glob: "*.js"
-            run: pnpm exec eslint --fix {staged_files}
-            stage_fixed: true
-        format:
-            glob: "*.{js,json,md}"
-            run: pnpm exec prettier --write {staged_files}
-            stage_fixed: true
-
-pre-push:
-    jobs:
-        - name: packages audit
-          run: pnpm audit --audit-level=high
-```
-
-**Ключові властивості:**
-
-- ESLint та Prettier запускаються паралельно лише для доданих у коміт файлів
-- `stage_fixed: true` автоматично переіндексовує виправлені файли
-- `pnpm audit` — перевірка вразливостей перед push

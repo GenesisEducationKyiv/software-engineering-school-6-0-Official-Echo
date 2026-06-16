@@ -1,6 +1,7 @@
 import { schedule } from "node-cron";
 
 import { RateLimitError } from "../errors/index.js";
+import { EventType } from "../kafka/topics.js";
 import { logger } from "./logger.js";
 
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
@@ -8,9 +9,18 @@ const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
 /**
  * Creates the release scanner with all infrastructure dependencies injected.
  *
+ * When a new release is detected the scanner **publishes** a `release.detected`
+ * event to Kafka rather than calling the notifier directly. The Notification
+ * Service consumer picks up the event and sends the email. This decouples
+ * release detection from email delivery.
+ *
+ * A `producer` dependency is optional: when omitted (e.g. in tests that don't
+ * care about Kafka) the scanner falls back to calling `notifier.sendReleaseNotification`.
+ *
  * @param {{
  *   githubService: { getLatestRelease: Function },
- *   notifier: { sendReleaseNotification: Function },
+ *   notifier?: { sendReleaseNotification: Function },
+ *   producer?: { publish: Function },
  *   repository: {
  *     findConfirmedRepos: Function,
  *     findConfirmedSubscribersByRepo: Function,
@@ -23,11 +33,15 @@ const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * *";
  *   },
  * }} deps
  */
-export function createScanner({ githubService, notifier, repository, metrics }) {
+export function createScanner({
+	githubService,
+	notifier,
+	producer,
+	repository,
+	metrics,
+}) {
 	/**
-	 *
 	 * @param {string} repo
-	 * @returns
 	 */
 	async function checkRepo(repo) {
 		const latestTag = await githubService.getLatestRelease(repo);
@@ -53,19 +67,29 @@ export function createScanner({ githubService, notifier, repository, metrics }) 
 			);
 			await repository.updateLastSeenTag(sub.id, latestTag);
 
-			try {
-				await notifier.sendReleaseNotification({
-					to: sub.email,
+			if (producer) {
+				await producer.publish(EventType.RELEASE_DETECTED, {
+					email: sub.email,
 					repo,
 					tag: latestTag,
 					unsubscribeToken: sub.unsubscribe_token,
 				});
 				metrics.notificationsSentTotal.inc();
-			} catch (err) {
-				logger.error(
-					{ err, email: sub.email, repo },
-					"[Scanner] Failed to send notification"
-				);
+			} else if (notifier) {
+				try {
+					await notifier.sendReleaseNotification({
+						to: sub.email,
+						repo,
+						tag: latestTag,
+						unsubscribeToken: sub.unsubscribe_token,
+					});
+					metrics.notificationsSentTotal.inc();
+				} catch (err) {
+					logger.error(
+						{ err, email: sub.email, repo },
+						"[Scanner] Failed to send notification"
+					);
+				}
 			}
 		}
 	}

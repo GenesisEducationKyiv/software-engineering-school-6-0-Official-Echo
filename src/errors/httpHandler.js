@@ -13,7 +13,7 @@ import {
 
 /**
  * Maps each AppError subclass to its HTTP status code.
- * 
+ *
  * @type {Map<Function, number>}
  */
 const HTTP_STATUS_MAP = new Map([

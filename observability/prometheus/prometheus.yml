@@ -7,3 +7,6 @@ scrape_configs:
     static_configs:
       - targets: ["ghchk:3000"]
     metrics_path: /metrics
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]

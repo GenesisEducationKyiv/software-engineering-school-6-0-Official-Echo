@@ -1,3 +1,8 @@
+import {
+	kafkaProducerErrorsTotal,
+	kafkaProducerMessagesTotal,
+} from "#src/services/metrics.js";
+
 import { logger } from "../services/logger.js";
 import { getKafkaClient } from "./client.js";
 import { TOPIC_EVENTS } from "./topics.js";
@@ -70,9 +75,13 @@ export function createProducer({ producer } = {}) {
 					},
 				],
 			});
-
+			kafkaProducerMessagesTotal.inc({
+				topic: TOPIC_EVENTS,
+				event_type: type,
+			});
 			logger.debug({ type, payload }, "[Kafka] Event published");
 		} catch (err) {
+			kafkaProducerErrorsTotal.inc({ topic: TOPIC_EVENTS, event_type: type });
 			logger.warn({ err, type }, "[Kafka] Failed to publish event — skipping");
 		}
 	}

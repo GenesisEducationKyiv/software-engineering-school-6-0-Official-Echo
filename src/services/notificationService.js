@@ -1,6 +1,7 @@
 import { getKafkaClient } from "../kafka/client.js";
 import { ConsumerGroup, EventType, TOPIC_EVENTS } from "../kafka/topics.js";
 import { logger } from "./logger.js";
+import { kafkaConsumerErrorsTotal, kafkaConsumerMessagesTotal } from "./metrics.js";
 
 /**
  * Creates the Notification Service consumer.
@@ -117,8 +118,17 @@ export function createNotificationService({ notifier }) {
 						{ parseErr, raw },
 						"[NotificationService] Failed to parse message as JSON — skipping"
 					);
+					kafkaConsumerErrorsTotal.inc({
+						topic: TOPIC_EVENTS,
+						event_type: "unknown",
+					});
 					return;
 				}
+
+				kafkaConsumerMessagesTotal.inc({
+					topic: TOPIC_EVENTS,
+					event_type: event.type ?? "unknown",
+				});
 
 				try {
 					await handleEvent(event);
@@ -128,6 +138,10 @@ export function createNotificationService({ notifier }) {
 						{ err, event },
 						"[NotificationService] Error handling event — message skipped"
 					);
+					kafkaConsumerErrorsTotal.inc({
+						topic: TOPIC_EVENTS,
+						event_type: event.type ?? "unknown",
+					});
 				}
 			},
 		});

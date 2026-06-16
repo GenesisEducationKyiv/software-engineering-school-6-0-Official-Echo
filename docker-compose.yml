@@ -131,6 +131,16 @@ services:
             - prometheus
         restart: unless-stopped
 
+    kafka-exporter:
+        image: danielqsj/kafka-exporter:1.9.0
+        command: --kafka.server=kafka:9092
+        ports:
+            - "9308:9308"
+        depends_on:
+            kafka:
+                condition: service_healthy
+        restart: unless-stopped
+
 volumes:
     db_data:
     redis_data:

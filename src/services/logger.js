@@ -56,28 +56,30 @@ export const logger = pino(
 /**
  * Express middleware that emits a structured log for every request/response.
  */
-export function httpLoggerMiddleware(req, res, next) {
-	const startAt = process.hrtime.bigint();
+export function createHttpLoggerMiddleware(logger) {
+	return function httpLoggerMiddleware(req, res, next) {
+		const startAt = process.hrtime.bigint();
 
-	res.on("finish", () => {
-		const durationMs = Number(process.hrtime.bigint() - startAt) / 1e6;
-		let level = "info";
+		res.on("finish", () => {
+			const durationMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+			let level = "info";
 
-		if (res.statusCode >= 500) {
-			level = "error";
-		} else if (res.statusCode >= 400) {
-			level = "warn";
-		}
+			if (res.statusCode >= 500) {
+				level = "error";
+			} else if (res.statusCode >= 400) {
+				level = "warn";
+			}
 
-		logger[level](
-			{
-				req: { method: req.method, url: req.originalUrl, id: req.id },
-				res: { statusCode: res.statusCode },
-				durationMs,
-			},
-			"http request"
-		);
-	});
+			logger[level](
+				{
+					req: { method: req.method, url: req.originalUrl, id: req.id },
+					res: { statusCode: res.statusCode },
+					durationMs,
+				},
+				"http request"
+			);
+		});
 
-	next();
+		next();
+	};
 }

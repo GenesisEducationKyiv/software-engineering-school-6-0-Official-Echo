@@ -1,42 +1,74 @@
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("#src/services/github.js", () => ({
-	repoExists: vi.fn().mockResolvedValue(true),
-	getLatestRelease: vi.fn().mockResolvedValue("v1.0.0"),
-}));
+// Infrastructure mocks — these are still concrete modules that the composition
+// root (server.js) would normally wire. In integration tests we bypass server.js
+// entirely and call buildApp() directly, so we only need to mock the two
+// external I/O boundaries: GitHub API and SMTP.
+const mockAxiosGet = vi.fn();
 
-vi.mock("#src/services/notifier.js", () => ({
-	sendConfirmationEmail: vi.fn().mockResolvedValue(undefined),
-	sendReleaseNotification: vi.fn().mockResolvedValue(undefined),
-}));
-
-// disable redis
-vi.mock("#src/services/cache.js", () => ({
-	cacheGet: vi.fn().mockResolvedValue(null),
-	cacheSet: vi.fn().mockResolvedValue(undefined),
-	cacheDel: vi.fn().mockResolvedValue(undefined),
-}));
-
-// disable cron
+vi.mock("axios", () => {
+	return {
+		default: {
+			create: vi.fn(() => ({
+				get: mockAxiosGet,
+			})),
+		},
+	};
+});
 vi.mock("node-cron", () => ({ schedule: vi.fn() }));
 
 process.env.DB_PATH = ":memory:";
 process.env.NODE_ENV = "test";
 
-const { app, server } = await import("#src/index.js");
-const { repoExists } = await import("#src/services/github.js");
-const { sendConfirmationEmail } = await import("#src/services/notifier.js");
+// Import the pieces we need to wire manually (same job as server.js, but for tests)
+const { buildApp } = await import("#src/app.js");
+const { runMigrations } = await import("#src/db/database.js");
+const { createGithubService } = await import("#src/services/github.js");
+const { createNotifier } = await import("#src/services/notifier.js");
+const { createSubscriptionService } =
+	await import("#src/services/subscriptionService.js");
+const repository = await import("#src/repositories/subscriptionRepository.js");
 
+// No-op cache — always misses, so github.js always goes to the mocked axios
+const noopCache = {
+	get: vi.fn().mockResolvedValue(null),
+	set: vi.fn().mockResolvedValue(undefined),
+};
+
+// Controllable transport stub — tests can spy on sendMail calls
+const transportStub = { sendMail: vi.fn().mockResolvedValue(undefined) };
+
+// Build the real service graph with real in-memory SQLite, stubbed externals
+const githubService = createGithubService(noopCache);
+const notifier = createNotifier(transportStub);
+const subscriptionService = createSubscriptionService({
+	repository,
+	githubService,
+	notifier,
+});
+
+await runMigrations();
+
+const app = buildApp(subscriptionService);
+const server = app.listen(0); // port 0 = random, avoids conflicts
 const api = request(app);
+
+mockAxiosGet.mockResolvedValue({ data: {} });
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	mockAxiosGet.mockResolvedValue({ data: {} }); // default: repo exists
+	transportStub.sendMail.mockResolvedValue(undefined);
+});
+
+afterAll(() => server.close());
 
 function subscribe(body, key) {
 	const req = api.post("/api/subscribe").send(body);
 	if (key) req.set("x-api-key", key);
 	return req;
 }
-
-afterAll(() => server.close());
 
 describe("GET /health", () => {
 	test("returns 200 ok", async () => {
@@ -81,11 +113,6 @@ describe("API-key auth", () => {
 });
 
 describe("POST /api/subscribe", () => {
-	beforeEach(() => {
-		vi.mocked(repoExists).mockResolvedValue(true);
-		vi.mocked(sendConfirmationEmail).mockResolvedValue(undefined);
-	});
-
 	test("400 on missing email", async () => {
 		const res = await subscribe({ repo: "owner/repo" });
 		expect(res.status).toBe(400);
@@ -108,7 +135,7 @@ describe("POST /api/subscribe", () => {
 	});
 
 	test("404 when repo does not exist on GitHub", async () => {
-		vi.mocked(repoExists).mockResolvedValue(false);
+		mockAxiosGet.mockRejectedValue({ response: { status: 404 } });
 		const res = await subscribe({
 			email: "user@example.com",
 			repo: "ghost/missing",
@@ -124,11 +151,8 @@ describe("POST /api/subscribe", () => {
 		});
 		expect(res.status).toBe(200);
 		expect(res.body.message).toMatch(/confirm/i);
-		expect(sendConfirmationEmail).toHaveBeenCalledWith(
-			expect.objectContaining({
-				email: "new@example.com",
-				repo: "facebook/react",
-			})
+		expect(transportStub.sendMail).toHaveBeenCalledWith(
+			expect.objectContaining({ to: "new@example.com" })
 		);
 	});
 
@@ -149,10 +173,11 @@ describe("GET /api/confirm/:token", () => {
 	});
 
 	test("200 and confirms a real token", async () => {
-		vi.mocked(repoExists).mockResolvedValue(true);
 		let capturedToken;
-		vi.mocked(sendConfirmationEmail).mockImplementation(({ confirmToken }) => {
-			capturedToken = confirmToken;
+		transportStub.sendMail.mockImplementation(({ html, text }) => {
+			// Extract the token from the confirm URL in the email body
+			const match = (html || text || "").match(/\/confirm\/([a-f0-9-]{36})/);
+			if (match) capturedToken = match[1];
 			return Promise.resolve();
 		});
 
@@ -167,10 +192,10 @@ describe("GET /api/confirm/:token", () => {
 	});
 
 	test("200 with alreadyConfirmed for a token confirmed twice", async () => {
-		vi.mocked(repoExists).mockResolvedValue(true);
 		let capturedToken;
-		vi.mocked(sendConfirmationEmail).mockImplementation(({ confirmToken }) => {
-			capturedToken = confirmToken;
+		transportStub.sendMail.mockImplementation(({ html, text }) => {
+			const match = (html || text || "").match(/\/confirm\/([a-f0-9-]{36})/);
+			if (match) capturedToken = match[1];
 			return Promise.resolve();
 		});
 
@@ -191,28 +216,24 @@ describe("GET /api/unsubscribe/:token", () => {
 	});
 
 	test("200 removes the subscription", async () => {
-		vi.mocked(repoExists).mockResolvedValue(true);
-
 		let capturedConfirmToken;
-		vi.mocked(sendConfirmationEmail).mockImplementation(({ confirmToken }) => {
-			capturedConfirmToken = confirmToken;
+		transportStub.sendMail.mockImplementation(({ html, text }) => {
+			const match = (html || text || "").match(/\/confirm\/([a-f0-9-]{36})/);
+			if (match) capturedConfirmToken = match[1];
 			return Promise.resolve();
 		});
 
 		await subscribe({ email: "unsub@example.com", repo: "owner/unsub-repo" });
-
 		await api.get(`/api/confirm/${capturedConfirmToken}`);
 
-		const { findAllByEmail, findByConfirmToken } =
-			await import("#src/repositories/subscriptionRepository.js");
-		const row = await findByConfirmToken(capturedConfirmToken);
+		const row = await repository.findByConfirmToken(capturedConfirmToken);
 		const capturedUnsubToken = row?.unsubscribe_token;
 
 		const res = await api.get(`/api/unsubscribe/${capturedUnsubToken}`);
 		expect(res.status).toBe(200);
 		expect(res.body.message).toMatch(/unsubscribed/i);
 
-		const after = await findAllByEmail("unsub@example.com");
+		const after = await repository.findAllByEmail("unsub@example.com");
 		expect(after).toHaveLength(0);
 	});
 });
@@ -235,10 +256,10 @@ describe("GET /api/subscriptions", () => {
 	});
 
 	test("200 returns subscriptions with confirmed flag", async () => {
-		vi.mocked(repoExists).mockResolvedValue(true);
 		let capturedToken;
-		vi.mocked(sendConfirmationEmail).mockImplementation(({ confirmToken }) => {
-			capturedToken = confirmToken;
+		transportStub.sendMail.mockImplementation(({ html, text }) => {
+			const match = (html || text || "").match(/\/confirm\/([a-f0-9-]{36})/);
+			if (match) capturedToken = match[1];
 			return Promise.resolve();
 		});
 

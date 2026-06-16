@@ -1,38 +1,36 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { RateLimitError } from "#src/errors/index.js";
-import { findConfirmedRepos } from "#src/repositories/subscriptionRepository.js";
-import { scanAllRepos } from "#src/services/scanner.js";
+import { createScanner } from "#src/services/scanner.js";
 
-vi.mock("#src/services/github.js", () => ({
-	getLatestRelease: vi.fn(),
-}));
+// scanner.js no longer imports concrete modules — all deps are injected.
+// No vi.mock() needed: we just pass plain vi.fn() objects directly.
 
-vi.mock("#src/services/notifier.js", () => ({
-	sendReleaseNotification: vi.fn(),
-}));
+function makeScanner(overrides = {}) {
+	const githubService = {
+		getLatestRelease: vi.fn(),
+		...overrides.githubService,
+	};
+	const notifier = {
+		sendReleaseNotification: vi.fn(),
+		...overrides.notifier,
+	};
+	const repository = {
+		findConfirmedRepos: vi.fn().mockResolvedValue([]),
+		findConfirmedSubscribersByRepo: vi.fn().mockResolvedValue([]),
+		updateLastSeenTag: vi.fn().mockResolvedValue(undefined),
+		...overrides.repository,
+	};
+	const metrics = {
+		scannerRunsTotal: { inc: vi.fn() },
+		scannerErrorsTotal: { inc: vi.fn() },
+		notificationsSentTotal: { inc: vi.fn() },
+		...overrides.metrics,
+	};
 
-vi.mock("#src/repositories/subscriptionRepository.js", () => ({
-	findConfirmedSubscribersByRepo: vi.fn(),
-	updateLastSeenTag: vi.fn(),
-	findConfirmedRepos: vi.fn(),
-}));
-
-vi.mock("#src/services/metrics.js", () => ({
-	notificationsSentTotal: { inc: vi.fn() },
-	scannerRunsTotal: { inc: vi.fn() },
-	scannerErrorsTotal: { inc: vi.fn() },
-}));
-
-import {
-	findConfirmedSubscribersByRepo,
-	updateLastSeenTag,
-} from "#src/repositories/subscriptionRepository.js";
-import { getLatestRelease } from "#src/services/github.js";
-// eslint-disable-next-line no-unused-vars
-import { notificationsSentTotal, scannerRunsTotal } from "#src/services/metrics.js";
-import { sendReleaseNotification } from "#src/services/notifier.js";
-import { checkRepo } from "#src/services/scanner.js";
+	const scanner = createScanner({ githubService, notifier, repository, metrics });
+	return { scanner, githubService, notifier, repository, metrics };
+}
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -40,16 +38,16 @@ beforeEach(() => {
 
 describe("checkRepo", () => {
 	test("does nothing when no releases exist", async () => {
-		getLatestRelease.mockResolvedValue(null);
+		const { scanner, notifier } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue(null) },
+		});
 
-		await checkRepo("some/repo");
+		await scanner.checkRepo("some/repo");
 
-		expect(sendReleaseNotification).not.toHaveBeenCalled();
+		expect(notifier.sendReleaseNotification).not.toHaveBeenCalled();
 	});
 
 	test("stores tag on first check (last_seen_tag = null), no notification", async () => {
-		getLatestRelease.mockResolvedValue("v1.0.0");
-
 		const subscribers = [
 			{
 				id: 1,
@@ -58,17 +56,22 @@ describe("checkRepo", () => {
 				last_seen_tag: null,
 			},
 		];
-		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
+		const { scanner, notifier, repository } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue("v1.0.0") },
+			repository: {
+				findConfirmedSubscribersByRepo: vi
+					.fn()
+					.mockResolvedValue(subscribers),
+			},
+		});
 
-		await checkRepo("first/check");
+		await scanner.checkRepo("first/check");
 
-		expect(sendReleaseNotification).not.toHaveBeenCalled();
-		expect(updateLastSeenTag).toHaveBeenCalledWith(1, "v1.0.0");
+		expect(notifier.sendReleaseNotification).not.toHaveBeenCalled();
+		expect(repository.updateLastSeenTag).toHaveBeenCalledWith(1, "v1.0.0");
 	});
 
 	test("does not notify when tag is unchanged", async () => {
-		getLatestRelease.mockResolvedValue("v1.0.0");
-
 		const subscribers = [
 			{
 				id: 1,
@@ -77,17 +80,21 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
+		const { scanner, notifier } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue("v1.0.0") },
+			repository: {
+				findConfirmedSubscribersByRepo: vi
+					.fn()
+					.mockResolvedValue(subscribers),
+			},
+		});
 
-		await checkRepo("same/tag");
+		await scanner.checkRepo("same/tag");
 
-		expect(sendReleaseNotification).not.toHaveBeenCalled();
+		expect(notifier.sendReleaseNotification).not.toHaveBeenCalled();
 	});
 
 	test("notifies all subscribers and updates tag when new release found", async () => {
-		getLatestRelease.mockResolvedValue("v2.0.0");
-		sendReleaseNotification.mockResolvedValue({});
-
 		const subscribers = [
 			{
 				id: 1,
@@ -102,37 +109,38 @@ describe("checkRepo", () => {
 				last_seen_tag: "v1.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
+		const { scanner, notifier, repository } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue("v2.0.0") },
+			notifier: {
+				sendReleaseNotification: vi.fn().mockResolvedValue(undefined),
+			},
+			repository: {
+				findConfirmedSubscribersByRepo: vi
+					.fn()
+					.mockResolvedValue(subscribers),
+			},
+		});
 
-		await checkRepo("new/release");
+		await scanner.checkRepo("new/release");
 
-		expect(sendReleaseNotification).toHaveBeenCalledTimes(2);
-
-		expect(sendReleaseNotification).toHaveBeenCalledWith({
-			email: "a@test.com",
+		expect(notifier.sendReleaseNotification).toHaveBeenCalledTimes(2);
+		expect(notifier.sendReleaseNotification).toHaveBeenCalledWith({
+			to: "a@test.com",
 			repo: "new/release",
 			tag: "v2.0.0",
 			unsubscribeToken: "tokA",
 		});
-
-		expect(sendReleaseNotification).toHaveBeenCalledWith({
-			email: "b@test.com",
+		expect(notifier.sendReleaseNotification).toHaveBeenCalledWith({
+			to: "b@test.com",
 			repo: "new/release",
 			tag: "v2.0.0",
 			unsubscribeToken: "tokB",
 		});
-
-		expect(updateLastSeenTag).toHaveBeenCalledWith(1, "v2.0.0");
-		expect(updateLastSeenTag).toHaveBeenCalledWith(2, "v2.0.0");
+		expect(repository.updateLastSeenTag).toHaveBeenCalledWith(1, "v2.0.0");
+		expect(repository.updateLastSeenTag).toHaveBeenCalledWith(2, "v2.0.0");
 	});
 
 	test("continues notifying other subscribers if one email fails", async () => {
-		getLatestRelease.mockResolvedValue("v3.0.0");
-
-		sendReleaseNotification
-			.mockRejectedValueOnce(new Error("SMTP error"))
-			.mockResolvedValueOnce({});
-
 		const subscribers = [
 			{
 				id: 1,
@@ -147,50 +155,120 @@ describe("checkRepo", () => {
 				last_seen_tag: "v2.0.0",
 			},
 		];
-		findConfirmedSubscribersByRepo.mockResolvedValue(subscribers);
+		const sendReleaseNotification = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("SMTP error"))
+			.mockResolvedValueOnce(undefined);
 
-		await checkRepo("mixed/results");
+		const { scanner } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue("v3.0.0") },
+			notifier: { sendReleaseNotification },
+			repository: {
+				findConfirmedSubscribersByRepo: vi
+					.fn()
+					.mockResolvedValue(subscribers),
+			},
+		});
+
+		await scanner.checkRepo("mixed/results");
 
 		expect(sendReleaseNotification).toHaveBeenCalledTimes(2);
+	});
+
+	test("increments notificationsSentTotal for each successful send", async () => {
+		const subscribers = [
+			{
+				id: 1,
+				email: "a@test.com",
+				unsubscribe_token: "tokA",
+				last_seen_tag: "v1.0.0",
+			},
+		];
+		const { scanner, metrics } = makeScanner({
+			githubService: { getLatestRelease: vi.fn().mockResolvedValue("v2.0.0") },
+			notifier: {
+				sendReleaseNotification: vi.fn().mockResolvedValue(undefined),
+			},
+			repository: {
+				findConfirmedSubscribersByRepo: vi
+					.fn()
+					.mockResolvedValue(subscribers),
+			},
+		});
+
+		await scanner.checkRepo("counter/repo");
+
+		expect(metrics.notificationsSentTotal.inc).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe("scanAllRepos", () => {
 	test("increments scanner run counter", async () => {
-		findConfirmedRepos.mockResolvedValue([]);
-		await scanAllRepos();
-		expect(scannerRunsTotal.inc).toHaveBeenCalled();
+		const { scanner, metrics } = makeScanner({
+			repository: { findConfirmedRepos: vi.fn().mockResolvedValue([]) },
+		});
+
+		await scanner.scanAllRepos();
+
+		expect(metrics.scannerRunsTotal.inc).toHaveBeenCalled();
 	});
 
 	test("does nothing when no confirmed repos", async () => {
-		findConfirmedRepos.mockResolvedValue([]);
-		await scanAllRepos();
-		expect(getLatestRelease).not.toHaveBeenCalled();
+		const { scanner, githubService } = makeScanner({
+			repository: { findConfirmedRepos: vi.fn().mockResolvedValue([]) },
+		});
+
+		await scanner.scanAllRepos();
+
+		expect(githubService.getLatestRelease).not.toHaveBeenCalled();
 	});
 
 	test("stops on RateLimitError and skips remaining repos", async () => {
-		findConfirmedRepos.mockResolvedValue([
-			{ repo: "a/one" },
-			{ repo: "b/two" },
-			{ repo: "c/three" },
-		]);
-		getLatestRelease
+		const getLatestRelease = vi
+			.fn()
 			.mockResolvedValueOnce(null)
 			.mockRejectedValueOnce(
 				new RateLimitError("rate limited", "RATE_LIMITED", 30)
 			)
 			.mockResolvedValueOnce(null);
-		findConfirmedSubscribersByRepo.mockResolvedValue([]);
-		await scanAllRepos();
+
+		const { scanner } = makeScanner({
+			githubService: { getLatestRelease },
+			repository: {
+				findConfirmedRepos: vi
+					.fn()
+					.mockResolvedValue([
+						{ repo: "a/one" },
+						{ repo: "b/two" },
+						{ repo: "c/three" },
+					]),
+				findConfirmedSubscribersByRepo: vi.fn().mockResolvedValue([]),
+			},
+		});
+
+		await scanner.scanAllRepos();
+
 		expect(getLatestRelease).toHaveBeenCalledTimes(2);
 	});
 
 	test("continues after a non-rate-limit error", async () => {
-		findConfirmedRepos.mockResolvedValue([{ repo: "a/one" }, { repo: "b/two" }]);
-		getLatestRelease
+		const getLatestRelease = vi
+			.fn()
 			.mockRejectedValueOnce(new Error("network error"))
 			.mockResolvedValueOnce(null);
-		await scanAllRepos();
+
+		const { scanner } = makeScanner({
+			githubService: { getLatestRelease },
+			repository: {
+				findConfirmedRepos: vi
+					.fn()
+					.mockResolvedValue([{ repo: "a/one" }, { repo: "b/two" }]),
+				findConfirmedSubscribersByRepo: vi.fn().mockResolvedValue([]),
+			},
+		});
+
+		await scanner.scanAllRepos();
+
 		expect(getLatestRelease).toHaveBeenCalledTimes(2);
 	});
 });

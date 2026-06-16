@@ -48,7 +48,6 @@ export const scannerRunsTotal = new Counter({
 	registers: [register],
 });
 
-// RED — Errors dimension
 export const httpErrorsTotal = new Counter({
 	name: "http_errors_total",
 	help: "Total number of HTTP error responses (4xx and 5xx)",

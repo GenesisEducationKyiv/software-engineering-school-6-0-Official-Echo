@@ -1,11 +1,40 @@
 import { ReasonPhrases, StatusCodes } from "http-status-codes";
 
 import { logger } from "../services/logger.js";
-import { AppError } from "./index.js";
+import {
+	AppError,
+	ConflictError,
+	ForbiddenError,
+	NotFoundError,
+	RateLimitError,
+	UnauthorizedError,
+	ValidationError,
+} from "./index.js";
 
+/**
+ * Maps each AppError subclass to its HTTP status code.
+ * 
+ * @type {Map<Function, number>}
+ */
+const HTTP_STATUS_MAP = new Map([
+	[ValidationError, StatusCodes.BAD_REQUEST],
+	[NotFoundError, StatusCodes.NOT_FOUND],
+	[ConflictError, StatusCodes.CONFLICT],
+	[RateLimitError, StatusCodes.TOO_MANY_REQUESTS],
+	[UnauthorizedError, StatusCodes.UNAUTHORIZED],
+	[ForbiddenError, StatusCodes.FORBIDDEN],
+]);
+
+/**
+ * Express global error handler.
+ * Translates AppError subclasses to HTTP responses.
+ * Unknown errors become 500.
+ */
 export const httpErrorHandler = (err, req, res, _next) => {
 	if (err instanceof AppError) {
-		const { status, body } = err.toHttp();
+		const status =
+			HTTP_STATUS_MAP.get(err.constructor) ??
+			StatusCodes.INTERNAL_SERVER_ERROR;
 		if (status >= 500) {
 			logger.error(
 				{ err, req: { method: req.method, url: req.originalUrl } },
@@ -20,7 +49,7 @@ export const httpErrorHandler = (err, req, res, _next) => {
 				"client error"
 			);
 		}
-		return res.status(status).json(body);
+		return res.status(status).json({ code: err.code, error: err.message });
 	}
 
 	logger.error(

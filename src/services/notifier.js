@@ -1,67 +1,43 @@
-import { createTransport as _createTransport } from "nodemailer";
+import { buildConfirmationEmail } from "../emails/confirmation.js";
+import { buildReleaseEmail } from "../emails/release.js";
 
-function createTransport() {
-	return _createTransport({
-		host: process.env.SMTP_HOST || "smtp.ethereal.email",
-		port: parseInt(process.env.SMTP_PORT || "587"),
-		secure: process.env.SMTP_SECURE === "true",
-		auth: {
-			user: process.env.SMTP_USER,
-			pass: process.env.SMTP_PASS,
+/**
+ * Creates a notifier bound to the given transport.
+ * @param {{ sendMail: Function }} transport
+ * @returns {{ sendConfirmationEmail: Function, sendReleaseNotification: Function }}
+ */
+export function createNotifier(transport) {
+	const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+	const FROM = process.env.SMTP_FROM || "noreply@github-notifier.dev";
+	return {
+		/**
+		 * Sends a subscription confirmation email.
+		 * @param {{ to: string; repo: string; confirmToken: string }} params
+		 */
+		async sendConfirmationEmail({ to, repo, confirmToken }) {
+			const payload = buildConfirmationEmail({
+				to,
+				repo,
+				confirmToken,
+				baseUrl: BASE_URL,
+			});
+			console.log(payload);
+			await transport.sendMail({ from: FROM, ...payload });
 		},
-	});
-}
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-const FROM = process.env.SMTP_FROM || "noreply@github-notifier.dev";
-
-/**
- * Sends a subscription confirmation email with a confirm link.
- * @param {{email:string;repo:string;confirmToken:string}} Email
- */
-export async function sendConfirmationEmail({ email, repo, confirmToken }) {
-	const transport = createTransport();
-	const confirmUrl = `${BASE_URL}/api/confirm/${confirmToken}`;
-
-	await transport.sendMail({
-		from: FROM,
-		to: email,
-		subject: `Confirm your subscription to ${repo} releases`,
-		text: `Please confirm your subscription to ${repo} releases:\n\n${confirmUrl}`,
-		html: `
-      <h2>Confirm subscription</h2>
-      <p>You requested to receive release notifications for <strong>${repo}</strong>.</p>
-      <p><a href="${confirmUrl}">Click here to confirm</a></p>
-      <p>If you didn't request this, ignore this email.</p>
-    `,
-	});
-}
-
-/**
- * Sends a new-release notification email.
- * @param {{email:string;repo:string;tag:string;unsubscribeToken:string}} Notification
- */
-export async function sendReleaseNotification({
-	email,
-	repo,
-	tag,
-	unsubscribeToken,
-}) {
-	const transport = createTransport();
-	const releaseUrl = `https://github.com/${repo}/releases/tag/${tag}`;
-	const unsubUrl = `${BASE_URL}/api/unsubscribe/${unsubscribeToken}`;
-
-	await transport.sendMail({
-		from: FROM,
-		to: email,
-		subject: `New release: ${repo} — ${tag}`,
-		text: `New release for ${repo}: ${tag}\n\n${releaseUrl}\n\nUnsubscribe: ${unsubUrl}`,
-		html: `
-      <h2>New release: <a href="https://github.com/${repo}">${repo}</a></h2>
-      <p>Tag: <strong>${tag}</strong></p>
-      <p><a href="${releaseUrl}">View on GitHub</a></p>
-      <hr>
-      <small><a href="${unsubUrl}">Unsubscribe</a></small>
-    `,
-	});
+		/**
+		 * Sends a new-release notification email.
+		 * @param {{ to: string; repo: string; tag: string; unsubscribeToken: string }} params
+		 */
+		async sendReleaseNotification({ to, repo, tag, unsubscribeToken }) {
+			const payload = buildReleaseEmail({
+				to,
+				repo,
+				tag,
+				unsubscribeToken,
+				baseUrl: BASE_URL,
+			});
+			await transport.sendMail({ from: FROM, ...payload });
+		},
+	};
 }

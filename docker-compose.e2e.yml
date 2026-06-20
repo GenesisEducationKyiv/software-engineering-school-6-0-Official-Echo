@@ -22,7 +22,7 @@ services:
       GRPC_PORT: 50051
       DB_PATH: ":memory:"
       BASE_URL: "http://localhost:3000"
-      CRON_SCHEDULE: "0 0 31 2 *"
+      CRON_SCHEDULE: "0 0 * * *"
       REDIS_URL: "redis://redis:6379"
       API_KEY: ""
       SMTP_HOST: ""

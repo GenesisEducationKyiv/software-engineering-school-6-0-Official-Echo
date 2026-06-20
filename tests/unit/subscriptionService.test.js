@@ -107,7 +107,7 @@ describe("subscribe()", () => {
 		).rejects.toThrow(ConflictError);
 	});
 
-	test("throws generic Error on other DB failures", async () => {
+	test("propagates raw error on other DB failures", async () => {
 		const { service } = makeService({
 			repository: {
 				insertSubscription: vi
@@ -117,7 +117,7 @@ describe("subscribe()", () => {
 		});
 		await expect(
 			service.subscribe("user@example.com", "owner/repo")
-		).rejects.toThrow("Database error");
+		).rejects.toThrow("disk full");
 	});
 
 	test("calls insertSubscription with uuid tokens", async () => {

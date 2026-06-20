@@ -5,6 +5,7 @@ import { SubscribeError } from "../errors/constants/subscribe.js";
 import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
 import { ConflictError, NotFoundError, RateLimitError } from "../errors/index.js";
 import { EventType } from "../kafka/topics.js";
+import { runSubscribeSaga } from "../saga/subscribeSaga.js";
 import {
 	validateConfirmToken,
 	validateEmailQuery,
@@ -88,23 +89,23 @@ export function createSubscriptionService({
 			const unsubscribeToken = uuidv4();
 
 			try {
-				await repository.insertSubscription(
+				await runSubscribeSaga({
 					email,
 					repo,
 					confirmToken,
-					unsubscribeToken
-				);
+					unsubscribeToken,
+					repository,
+					notifier,
+				});
 			} catch (err) {
-				if (err.message.includes("UNIQUE constraint failed")) {
+				if (err.message?.includes("UNIQUE constraint failed")) {
 					throw new ConflictError(
 						"Already subscribed to this repository",
 						SubscribeError.ALREADY_EXISTS
 					);
 				}
-				throw new Error("Database error", { cause: err });
+				throw err;
 			}
-
-			await notifier.sendConfirmationEmail({ to: email, repo, confirmToken });
 
 			publishEvent(EventType.SUBSCRIPTION_CREATED, { email, repo });
 

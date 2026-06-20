@@ -61,6 +61,21 @@ export async function deleteByUnsubscribeToken(token) {
 }
 
 /**
+ * Deletes a pending subscription by its confirm token.
+ * Always removes only unconfirmed rows.
+ * @param {string} confirmToken
+ * @returns {Promise<{ changes: number }>}
+ */
+export async function deleteByConfirmToken(confirmToken) {
+	const result = await db()
+		.deleteFrom("subscriptions")
+		.where("confirm_token", "=", confirmToken)
+		.where("confirmed", "=", 0)
+		.executeTakeFirst();
+	return { changes: Number(result.numDeletedRows) };
+}
+
+/**
  * @param {string} email
  * @returns {Promise<{ email: string; repo: string; confirmed: number; last_seen_tag: string | null }[]>}
  */

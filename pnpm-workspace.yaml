@@ -1,0 +1,8 @@
+packages:
+  - scanner-service
+  - packages/*
+
+allowBuilds:
+  '@evilmartians/lefthook': true
+  better-sqlite3: true
+  protobufjs: true

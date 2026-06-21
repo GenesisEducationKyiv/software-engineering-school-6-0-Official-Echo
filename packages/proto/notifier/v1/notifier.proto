@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package notifier.v1;
+
+option java_package = "dev.ghnotifier.proto.v1";
+option java_multiple_files = true;
+
+service SubscriptionService {
+  rpc Subscribe        (SubscribeRequest)        returns (SubscribeResponse);
+  rpc Confirm          (ConfirmRequest)          returns (ConfirmResponse);
+  rpc Unsubscribe      (UnsubscribeRequest)      returns (UnsubscribeResponse);
+  rpc GetSubscriptions (GetSubscriptionsRequest) returns (GetSubscriptionsResponse);
+
+  rpc FindConfirmedRepos             (FindConfirmedReposRequest)             returns (FindConfirmedReposResponse);
+  rpc FindConfirmedSubscribersByRepo (FindConfirmedSubscribersByRepoRequest) returns (FindConfirmedSubscribersByRepoResponse);
+  rpc UpdateLastSeenTag              (UpdateLastSeenTagRequest)              returns (UpdateLastSeenTagResponse);
+}
+
+message SubscribeRequest        { string email = 1; string repo = 2; }
+message SubscribeResponse       { string message = 1; }
+message ConfirmRequest          { string token = 1; }
+message ConfirmResponse         { string message = 1; }
+message UnsubscribeRequest      { string token = 1; }
+message UnsubscribeResponse     { string message = 1; }
+message GetSubscriptionsRequest { string email = 1; }
+
+message Subscription {
+  string email         = 1;
+  string repo          = 2;
+  bool   confirmed     = 3;
+  string last_seen_tag = 4;
+}
+message GetSubscriptionsResponse { repeated Subscription subscriptions = 1; }
+
+message FindConfirmedReposRequest  {}
+message FindConfirmedReposResponse { repeated string repos = 1; }
+
+message FindConfirmedSubscribersByRepoRequest { string repo = 1; }
+message ConfirmedSubscriber {
+  int64  id                = 1;
+  string email             = 2;
+  string unsubscribe_token = 3;
+  string last_seen_tag     = 4;
+}
+message FindConfirmedSubscribersByRepoResponse { repeated ConfirmedSubscriber subscribers = 1; }
+
+message UpdateLastSeenTagRequest  { int64 id = 1; string tag = 2; }
+message UpdateLastSeenTagResponse {}

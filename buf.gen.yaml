@@ -1,0 +1,13 @@
+version: v2
+
+plugins:
+  - remote: buf.build/protocolbuffers/js
+    out: src/grpc/generated
+    opt:
+      - import_style=es6
+      - binary
+
+  - remote: buf.build/grpc/node
+    out: src/grpc/generated
+    opt:
+      - grpc_js

@@ -7,6 +7,7 @@ import globals from "globals";
 export default defineConfig([
 	{
 		files: ["**/*.js"],
+		ignores: ["**/generated/**"],
 		extends: [js.configs.recommended],
 		plugins: {
 			js,

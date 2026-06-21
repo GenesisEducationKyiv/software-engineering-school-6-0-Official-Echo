@@ -48,3 +48,14 @@ jobs:
         env:
           DB_PATH: ":memory:"
           NODE_ENV: test
+
+  buf-lint:
+    name: Buf Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup buf
+        uses: bufbuild/buf-action@v1
+      - name: Lint proto
+        run: buf lint

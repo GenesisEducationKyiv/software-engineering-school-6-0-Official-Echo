@@ -6,13 +6,31 @@ export default defineConfig({
 	timeout: 30_000,
 	retries: process.env.CI ? 1 : 0,
 	workers: process.env.CI ? 1 : undefined,
-	reporter: process.env.CI ? "github" : "list",
+
+	reporter: process.env.CI
+		? [
+				["github"],
+				["html", { outputFolder: "playwright-report", open: "never" }],
+				["json", { outputFile: "test-results/results.json" }],
+			]
+		: [["list"], ["html"]],
+
 	use: {
 		baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
 		screenshot: "only-on-failure",
 		trace: "on-first-retry",
+		video: "retain-on-failure",
 	},
-	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+
+	projects: [
+		{
+			name: "chromium",
+			use: {
+				...devices["Desktop Chrome"],
+			},
+		},
+	],
+
 	webServer: process.env.E2E_BASE_URL
 		? undefined
 		: {

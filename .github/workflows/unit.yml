@@ -40,5 +40,5 @@ jobs:
         if: always()
         with:
           name: unit-coverage
-          path: coverage/unit/
+          path: coverage-unit/
           retention-days: 7

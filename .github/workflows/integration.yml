@@ -28,11 +28,9 @@ jobs:
       - name: Copy coverage out of container
         if: always()
         run: |
-          # The `tests` container writes coverage to /app/coverage/integration.
-          # Extract it if the container still exists (it may have exited).
           CONTAINER=$(docker compose -f docker-compose.integration.yml ps -q tests 2>/dev/null || true)
           if [ -n "$CONTAINER" ]; then
-            docker cp "$CONTAINER:/app/coverage/integration" ./coverage-integration || true
+            docker cp "$CONTAINER:/app/coverage-integration" ./coverage-integration || true
           fi
 
       - name: Upload coverage

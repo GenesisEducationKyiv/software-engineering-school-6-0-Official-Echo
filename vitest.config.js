@@ -10,6 +10,8 @@ export default defineConfig({
 			provider: "v8",
 			reporter: ["text", "lcov"],
 			reportsDirectory: "./coverage",
+			clean: true,
+			enabled: true,
 		},
 	},
 });

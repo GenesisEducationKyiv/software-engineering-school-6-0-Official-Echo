@@ -2,61 +2,11 @@
 
 A Node.js service that lets users subscribe to email notifications for new GitHub repository releases.
 
-## How it works
-
-1. User subscribes via `POST /api/subscribe` with their email and a GitHub repo (`owner/repo`)
-2. Service verifies the repo exists via GitHub API, then sends a confirmation email
-3. User confirms via the link in the email (`GET /api/confirm/:token`)
-4. A background scanner runs on a cron schedule, checks all confirmed subscriptions for new releases
-5. When a new release is detected, an email is sent with an unsubscribe link (`GET /api/unsubscribe/:token`)
-
-## Stack
-
-- **Node.js 20** / **pnpm 9**
-- **Express 5** — HTTP API
-- **better-sqlite3** — SQLite database, auto-migrated on startup
-- **node-cron** — release scanner scheduler
-- **Nodemailer** — email delivery
-- **axios** — GitHub API client
-- **ioredis** — Redis caching
-- **prom-client** — Prometheus metrics
-- **@grpc/grpc-js** — gRPC server
-- **uuid** — confirmation and unsubscribe token generation
-- **Vitest** — unit tests
-- **ESLint** — linting
-- **GitHub Actions** — CI
-
-## Project structure
-
-```
-├── .github/workflows/ci.yml     # CI: lint + test on every push
-├── proto/notifier.proto          # gRPC service definition
-├── public/index.html             # HTML subscription page (served at GET /)
-├── src/
-│   ├── index.js                  # App entry point
-│   ├── db/database.js            # SQLite connection + migrations
-│   ├── grpc/server.js            # gRPC server (alternative to REST)
-│   ├── middleware/
-│   │   ├── auth.js               # X-API-Key authentication
-│   │   ├── errorHandler.js       # Global Express error handler
-│   │   └── validate.js           # Request body validation
-│   ├── routes/subscriptions.js   # All 4 REST endpoints
-│   └── services/
-│       ├── cache.js              # Redis cache (TTL 10 min)
-│       ├── github.js             # GitHub API + caching
-│       ├── metrics.js            # Prometheus metrics
-│       ├── notifier.js           # Confirmation + release emails
-│       └── scanner.js            # Cron: polls GitHub for new releases
-├── tests/                        # Unit tests
-├── swagger.yaml                  # API contract
-├── Dockerfile
-└── docker-compose.yml            # App + Redis
-```
-
 ## Running locally
 
 ```bash
 pnpm install
+buf generate
 cp .env.example .env
 # fill in SMTP_*, GITHUB_TOKEN
 pnpm start
@@ -96,22 +46,9 @@ pnpm test
 | `SMTP_PASS`     | SMTP password                                                     | —                             |
 | `SMTP_FROM`     | Sender address                                                    | `noreply@github-notifier.dev` |
 
-## API
-
-Full contract: [`swagger.yaml`](./swagger.yaml) — paste into https://editor.swagger.io/
-
-| Method | Path                        | Auth    | Description                          |
-| ------ | --------------------------- | ------- | ------------------------------------ |
-| `POST` | `/api/subscribe`            | API key | Subscribe (sends confirmation email) |
-| `GET`  | `/api/confirm/:token`       | —       | Confirm subscription                 |
-| `GET`  | `/api/unsubscribe/:token`   | —       | Unsubscribe                          |
-| `GET`  | `/api/subscriptions?email=` | API key | List subscriptions for email         |
-| `GET`  | `/health`                   | —       | Health check                         |
-| `GET`  | `/metrics`                  | —       | Prometheus metrics                   |
-
 ### gRPC
 
-Same operations available on port `50051`. See [`proto/notifier.proto`](./proto/notifier.proto).
+Same operations available on port `50051`. See [`notifier.proto`](packages/proto//notifier/v1/notifier.proto).
 
 ```bash
 grpcurl -plaintext \

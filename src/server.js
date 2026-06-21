@@ -8,14 +8,8 @@ import * as repository from "./repositories/subscriptionRepository.js";
 import { cacheGet, cacheSet } from "./services/cache.js";
 import { createGithubService } from "./services/github.js";
 import { createHttpLoggerMiddleware, logger } from "./services/logger.js";
-import {
-	notificationsSentTotal,
-	scannerErrorsTotal,
-	scannerRunsTotal,
-} from "./services/metrics.js";
 import { createNotificationService } from "./services/notificationService.js";
 import { createNotifier } from "./services/notifier.js";
-import { createScanner } from "./services/scanner.js";
 import { createSubscriptionService } from "./services/subscriptionService.js";
 
 const PORT = process.env.PORT || 3000;
@@ -35,14 +29,9 @@ export async function startServer() {
 		debug: true,
 	});
 
-	const cache = {
-		get: cacheGet,
-		set: cacheSet,
-	};
-
+	const cache = { get: cacheGet, set: cacheSet };
 	const githubService = createGithubService(cache);
 	const notifier = createNotifier(transport);
-
 	const producer = createProducer();
 
 	const subscriptionService = createSubscriptionService({
@@ -52,13 +41,6 @@ export async function startServer() {
 		producer,
 	});
 
-	const scanner = createScanner({
-		githubService,
-		producer,
-		repository,
-		metrics: { scannerRunsTotal, notificationsSentTotal, scannerErrorsTotal },
-	});
-
 	const notificationService = createNotificationService({ notifier });
 
 	const httpLoggerMiddleware = createHttpLoggerMiddleware(logger);
@@ -66,7 +48,6 @@ export async function startServer() {
 
 	const server = app.listen(PORT, async () => {
 		logger.info({ port: PORT }, "[HTTP] Running on port %d", PORT);
-		scanner.start();
 
 		notificationService
 			.start()

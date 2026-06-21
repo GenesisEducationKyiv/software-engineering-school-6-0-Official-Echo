@@ -77,7 +77,7 @@ export async function startServer() {
 				)
 			);
 
-		startGrpcServer(subscriptionService);
+		startGrpcServer(subscriptionService, repository);
 	});
 
 	//Custom shutdown logic

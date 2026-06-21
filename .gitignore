@@ -2,7 +2,9 @@ node_modules/
 data/
 .env
 coverage/
+coverage-*/
+playwright-report/
 *.db
 Deno.json
-pnpm-workspace.yaml
 test-results
+src/grpc/generated/

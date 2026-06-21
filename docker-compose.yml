@@ -11,7 +11,6 @@ services:
             GRPC_PORT: 50051
             DB_PATH: /app/data/app.db
             BASE_URL: ${BASE_URL:-http://localhost:3000}
-            CRON_SCHEDULE: ${CRON_SCHEDULE:-"*/15 * * * *"}
             GITHUB_TOKEN: ${GITHUB_TOKEN:-}
             REDIS_URL: redis://redis:6379
             KAFKA_BROKERS: kafka:9092
@@ -30,6 +29,35 @@ services:
             kafka:
                 condition: service_healthy
             elasticsearch:
+                condition: service_healthy
+            redis:
+                condition: service_started
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+
+    scanner:
+        build:
+            context: .
+            dockerfile: scanner-service/Dockerfile
+        environment:
+            SUBSCRIPTION_SERVICE_GRPC_ADDR: ghchk:50051
+            KAFKA_BROKERS: kafka:9092
+            KAFKA_CLIENT_ID: ghchk-scanner
+            REDIS_URL: redis://redis:6379
+            GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+            CRON_SCHEDULE: ${CRON_SCHEDULE:-"*/15 * * * *"}
+            LOG_LEVEL: ${LOG_LEVEL:-info}
+            ELASTICSEARCH_URL: http://elasticsearch:9200
+            ELASTICSEARCH_INDEX: ghchk-scanner-logs
+        depends_on:
+            ghchk:
+                condition: service_healthy
+            kafka:
                 condition: service_healthy
             redis:
                 condition: service_started
@@ -85,7 +113,7 @@ services:
             test:
                 [
                     "CMD-SHELL",
-                    'curl -sf http://localhost:9200/_cluster/health | grep -v ''\"status\":\"red\"''',
+                    'curl -sf http://localhost:9200/_cluster/health | grep -v "\"status\":\"red\""',
                 ]
             interval: 15s
             timeout: 10s
@@ -132,7 +160,7 @@ services:
         restart: unless-stopped
 
     kafka-exporter:
-        image: danielqsj/kafka-exporter:1.9.0
+        image: danielqsj/kafka-exporter:v1.9.0
         command: --kafka.server=kafka:9092
         ports:
             - "9308:9308"

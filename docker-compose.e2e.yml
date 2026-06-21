@@ -1,6 +1,6 @@
 # Starts the full app and runs Playwright E2E tests.
 #
-#  docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+# docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
 
 services:
   redis:
@@ -13,6 +13,33 @@ services:
       timeout: 2s
       retries: 10
 
+  kafka:
+    image: apache/kafka:4.2.1
+    networks:
+      - e2e_net
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
   ghchk:
     build:
       context: .
@@ -22,8 +49,9 @@ services:
       GRPC_PORT: 50051
       DB_PATH: ":memory:"
       BASE_URL: "http://localhost:3000"
-      CRON_SCHEDULE: "0 0 * * *"
       REDIS_URL: "redis://redis:6379"
+      KAFKA_BROKERS: "kafka:9092"
+      KAFKA_CLIENT_ID: "ghchk"
       API_KEY: ""
       SMTP_HOST: ""
       SMTP_PORT: "587"
@@ -36,6 +64,8 @@ services:
     networks:
       - e2e_net
     depends_on:
+      kafka:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -43,6 +73,28 @@ services:
       interval: 3s
       timeout: 3s
       retries: 15
+
+  scanner:
+    build:
+      context: .
+      dockerfile: scanner-service/Dockerfile
+    environment:
+      SUBSCRIPTION_SERVICE_GRPC_ADDR: "ghchk:50051"
+      KAFKA_BROKERS: "kafka:9092"
+      KAFKA_CLIENT_ID: "ghchk-scanner"
+      REDIS_URL: "redis://redis:6379"
+      GITHUB_TOKEN: ""
+      CRON_SCHEDULE: "*/15 * * * *"
+      LOG_LEVEL: "info"
+    networks:
+      - e2e_net
+    depends_on:
+      ghchk:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   e2e:
     build:
@@ -57,6 +109,8 @@ services:
     depends_on:
       ghchk:
         condition: service_healthy
+      scanner:
+        condition: service_started
 
 networks:
   e2e_net:

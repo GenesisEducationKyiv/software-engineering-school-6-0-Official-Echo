@@ -24,10 +24,10 @@ const proto = loadPackageDefinition(packageDef).notifier.v1;
 
 /**
  * @param {object} subscriptionService  Public subscription operations
- * @param {object} repository           Raw DB access
+ * @param {object} queryService         Confirmed-repo lookups and last-seen-tag updates
  * @returns {import("@grpc/grpc-js").Server}
  */
-export function startGrpcServer(subscriptionService, repository) {
+export function startGrpcServer(subscriptionService, queryService) {
 	const Subscribe = catchGrpcErrors(async (call, callback) => {
 		const { email, repo } = call.request;
 		const result = await subscriptionService.subscribe(email, repo);
@@ -59,22 +59,21 @@ export function startGrpcServer(subscriptionService, repository) {
 		});
 	});
 
-	// TODO Create a query service instead of simply using the repository
 	const FindConfirmedRepos = catchGrpcErrors(async (_call, callback) => {
-		const rows = await repository.findConfirmedRepos();
-		callback(null, { repos: rows.map((r) => r.repo) });
+		const result = await queryService.findConfirmedRepos();
+		callback(null, { repos: result.repos });
 	});
 
 	const FindConfirmedSubscribersByRepo = catchGrpcErrors(
 		async (call, callback) => {
 			const { repo } = call.request;
-			const rows = await repository.findConfirmedSubscribersByRepo(repo);
+			const result = await queryService.findConfirmedSubscribersByRepo(repo);
 			callback(null, {
-				subscribers: rows.map((r) => ({
-					id: String(r.id),
-					email: r.email,
-					unsubscribe_token: r.unsubscribe_token,
-					last_seen_tag: r.last_seen_tag ?? "",
+				subscribers: result.subscribers.map((s) => ({
+					id: String(s.id),
+					email: s.email,
+					unsubscribe_token: s.unsubscribe_token,
+					last_seen_tag: s.last_seen_tag ?? "",
 				})),
 			});
 		}
@@ -82,7 +81,7 @@ export function startGrpcServer(subscriptionService, repository) {
 
 	const UpdateLastSeenTag = catchGrpcErrors(async (call, callback) => {
 		const { id, tag } = call.request;
-		await repository.updateLastSeenTag(Number(id), tag);
+		await queryService.updateLastSeenTag(id, tag);
 		callback(null, {});
 	});
 

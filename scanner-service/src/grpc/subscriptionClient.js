@@ -1,6 +1,6 @@
 import { credentials, loadPackageDefinition } from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
-import { dirname,join } from "path";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const protoPackage = fileURLToPath(import.meta.resolve("@ghchk/proto/package.json"));

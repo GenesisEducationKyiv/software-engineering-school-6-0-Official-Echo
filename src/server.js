@@ -10,6 +10,7 @@ import { createGithubService } from "./services/github.js";
 import { createHttpLoggerMiddleware, logger } from "./services/logger.js";
 import { createNotificationService } from "./services/notificationService.js";
 import { createNotifier } from "./services/notifier.js";
+import { createQueryService } from "./services/queryService.js";
 import { createSubscriptionService } from "./services/subscriptionService.js";
 
 const PORT = process.env.PORT || 3000;
@@ -42,6 +43,7 @@ export async function startServer() {
 	});
 
 	const notificationService = createNotificationService({ notifier });
+	const queryService = createQueryService({ repository });
 
 	const httpLoggerMiddleware = createHttpLoggerMiddleware(logger);
 	const app = buildApp(subscriptionService, httpLoggerMiddleware);
@@ -58,7 +60,7 @@ export async function startServer() {
 				)
 			);
 
-		startGrpcServer(subscriptionService, repository);
+		startGrpcServer(subscriptionService, queryService);
 	});
 
 	//Custom shutdown logic

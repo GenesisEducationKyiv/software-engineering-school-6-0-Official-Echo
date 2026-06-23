@@ -1,9 +1,16 @@
 import { ConfirmError } from "../errors/constants/confirm.js";
 import { GetSubscriptionsError } from "../errors/constants/getSubscriptions.js";
+import { QueryError } from "../errors/constants/query.js";
 import { SubscribeError } from "../errors/constants/subscribe.js";
 import { UnsubscribeError } from "../errors/constants/unsubscribe.js";
 import { ValidationError } from "../errors/index.js";
-import { emailQuerySchema, subscribeSchema, tokenSchema } from "./schemas.js";
+import {
+	emailQuerySchema,
+	repoQuerySchema,
+	subscribeSchema,
+	tokenSchema,
+	updateLastSeenTagSchema,
+} from "./schemas.js";
 
 /**
  * Parses input against a Zod schema.
@@ -59,4 +66,24 @@ export function validateUnsubscribeToken(data) {
  */
 export function validateEmailQuery(data) {
 	return parse(emailQuerySchema, data, GetSubscriptionsError.INVALID_EMAIL);
+}
+
+/**
+ * Validates a repo query parameter (owner/repo format).
+ * @param {{repo:string}} data
+ * @returns {{repo:string}}
+ * @throws {ValidationError}
+ */
+export function validateRepoQuery(data) {
+	return parse(repoQuerySchema, data, QueryError.INVALID_REPO);
+}
+
+/**
+ * Validates a last-seen-tag update: a positive integer id and a non-empty tag.
+ * @param {{id:number|string; tag:string}} data
+ * @returns {{id:number; tag:string}}
+ * @throws {ValidationError}
+ */
+export function validateUpdateLastSeenTag(data) {
+	return parse(updateLastSeenTagSchema, data, QueryError.INVALID_UPDATE_INPUT);
 }

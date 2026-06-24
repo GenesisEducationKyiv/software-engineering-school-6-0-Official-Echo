@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ghchk/common':
+        specifier: workspace:*
+        version: link:packages/common
       '@ghchk/proto':
         specifier: workspace:*
         version: link:packages/proto
@@ -106,10 +109,37 @@ importers:
         specifier: ^4.1.5
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/coverage-v8@4.1.9)(vite@8.0.16(@types/node@26.0.0)(yaml@2.9.0))
 
+  packages/common:
+    dependencies:
+      axios:
+        specifier: ^1.18.0
+        version: 1.18.0(supports-color@5.5.0)
+      http-status-codes:
+        specifier: ^2.3.0
+        version: 2.3.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.11.1(supports-color@5.5.0)
+      kafkajs:
+        specifier: ^2.2.4
+        version: 2.2.4
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+      pino-elasticsearch:
+        specifier: ^9.0.0
+        version: 9.0.0(supports-color@5.5.0)
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
+
   packages/proto: {}
 
   scanner-service:
     dependencies:
+      '@ghchk/common':
+        specifier: workspace:*
+        version: link:../packages/common
       '@ghchk/proto':
         specifier: workspace:*
         version: link:../packages/proto

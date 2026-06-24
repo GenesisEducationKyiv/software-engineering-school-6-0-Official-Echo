@@ -9,6 +9,7 @@
 		"dev": "nodemon src/server.js"
 	},
 	"dependencies": {
+		"@ghchk/common": "workspace:*",
 		"@ghchk/proto": "workspace:*",
 		"@grpc/grpc-js": "^1.14.3",
 		"@grpc/proto-loader": "^0.8.0",

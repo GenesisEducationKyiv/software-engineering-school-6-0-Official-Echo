@@ -28,13 +28,13 @@ function labelsMatch(actual, expected) {
 	);
 }
 
-function counterValue(counter, labels) {
-	const { values } = counter.get();
+async function counterValue(counter, labels) {
+	const { values } = await counter.get();
 	return values.find((v) => labelsMatch(v.labels, labels))?.value ?? 0;
 }
 
-function histogramSampleCount(histogram, labels) {
-	const { values } = histogram.get();
+async function histogramSampleCount(histogram, labels) {
+	const { values } = await histogram.get();
 	const match = values.find(
 		(v) => v.metricName.endsWith("_count") && labelsMatch(v.labels, labels)
 	);
@@ -71,7 +71,7 @@ describe("metricsMiddleware", () => {
 		});
 
 		expect(
-			counterValue(httpRequestsTotal, {
+			await counterValue(httpRequestsTotal, {
 				method: "GET",
 				route: "/api/subscriptions",
 				status: 200,
@@ -79,12 +79,15 @@ describe("metricsMiddleware", () => {
 		).toBe(1);
 	});
 
-	test("does not record anything before the response finishes", () => {
+	test("does not record anything before the response finishes", async () => {
 		const { req, res } = makeReqRes({ statusCode: 200 });
 		metricsMiddleware(req, res, () => {});
 
 		expect(
-			counterValue(httpRequestsTotal, { method: "GET", route: "/api/foo" })
+			await counterValue(httpRequestsTotal, {
+				method: "GET",
+				route: "/api/foo",
+			})
 		).toBe(0);
 	});
 
@@ -97,7 +100,7 @@ describe("metricsMiddleware", () => {
 		});
 
 		expect(
-			counterValue(httpRequestsTotal, {
+			await counterValue(httpRequestsTotal, {
 				method: "GET",
 				route: "/api/confirm/:token",
 				status: 200,
@@ -113,7 +116,7 @@ describe("metricsMiddleware", () => {
 		});
 
 		expect(
-			counterValue(httpRequestsTotal, {
+			await counterValue(httpRequestsTotal, {
 				method: "GET",
 				route: "/does-not-exist",
 				status: 404,
@@ -129,7 +132,7 @@ describe("metricsMiddleware", () => {
 		});
 
 		expect(
-			histogramSampleCount(httpRequestDuration, {
+			await histogramSampleCount(httpRequestDuration, {
 				method: "POST",
 				route: "/api/subscribe",
 				status: 201,
@@ -143,7 +146,7 @@ describe("metricsMiddleware", () => {
 			await runMiddleware({ method: "GET", path: "/api/foo", statusCode });
 
 			expect(
-				counterValue(httpErrorsTotal, {
+				await counterValue(httpErrorsTotal, {
 					method: "GET",
 					route: "/api/foo",
 					statusCode,
@@ -151,7 +154,7 @@ describe("metricsMiddleware", () => {
 			).toBe(0);
 
 			expect(
-				counterValue(httpErrorsTotal, {
+				await counterValue(httpErrorsTotal, {
 					method: "GET",
 					route: "/api/foo",
 					status: statusCode,
@@ -166,7 +169,7 @@ describe("metricsMiddleware", () => {
 			await runMiddleware({ method: "GET", path: "/api/foo", statusCode });
 
 			expect(
-				counterValue(httpErrorsTotal, {
+				await counterValue(httpErrorsTotal, {
 					method: "GET",
 					route: "/api/foo",
 					status: statusCode,
@@ -181,21 +184,21 @@ describe("metricsMiddleware", () => {
 		await runMiddleware({ method: "GET", path: "/api/foo", statusCode: 500 });
 
 		expect(
-			counterValue(httpRequestsTotal, {
+			await counterValue(httpRequestsTotal, {
 				method: "GET",
 				route: "/api/foo",
 				status: 200,
 			})
 		).toBe(2);
 		expect(
-			counterValue(httpRequestsTotal, {
+			await counterValue(httpRequestsTotal, {
 				method: "GET",
 				route: "/api/foo",
 				status: 500,
 			})
 		).toBe(1);
 		expect(
-			counterValue(httpErrorsTotal, {
+			await counterValue(httpErrorsTotal, {
 				method: "GET",
 				route: "/api/foo",
 				status: 500,

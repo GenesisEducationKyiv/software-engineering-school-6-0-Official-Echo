@@ -22,8 +22,8 @@ function labelsMatch(actual, expected) {
 	);
 }
 
-function counterValue(counter, labels) {
-	const { values } = counter.get();
+async function counterValue(counter, labels) {
+	const { values } = await counter.get();
 	return values.find((v) => labelsMatch(v.labels, labels))?.value ?? 0;
 }
 
@@ -37,7 +37,9 @@ describe("catchGrpcErrors", () => {
 		const handler = catchGrpcErrors("Subscribe", async () => {});
 		await handler({}, vi.fn());
 
-		expect(counterValue(grpcRequestsTotal, { method: "Subscribe" })).toBe(1);
+		expect(await counterValue(grpcRequestsTotal, { method: "Subscribe" })).toBe(
+			1
+		);
 	});
 
 	test("counts each call to the same method independently", async () => {
@@ -46,16 +48,16 @@ describe("catchGrpcErrors", () => {
 		await handler({}, vi.fn());
 		await handler({}, vi.fn());
 
-		expect(counterValue(grpcRequestsTotal, { method: "Confirm" })).toBe(3);
+		expect(await counterValue(grpcRequestsTotal, { method: "Confirm" })).toBe(3);
 	});
 
 	test("does not increment grpcErrorsTotal when the handler succeeds", async () => {
 		const handler = catchGrpcErrors("GetSubscriptions", async () => {});
 		await handler({}, vi.fn());
 
-		expect(counterValue(grpcErrorsTotal, { method: "GetSubscriptions" })).toBe(
-			0
-		);
+		expect(
+			await counterValue(grpcErrorsTotal, { method: "GetSubscriptions" })
+		).toBe(0);
 	});
 
 	test("passes call/callback through to the wrapped handler on success", async () => {
@@ -97,9 +99,9 @@ describe("catchGrpcErrors", () => {
 
 		await handler({}, vi.fn());
 
-		expect(counterValue(grpcErrorsTotal, { method: "UpdateLastSeenTag" })).toBe(
-			1
-		);
+		expect(
+			await counterValue(grpcErrorsTotal, { method: "UpdateLastSeenTag" })
+		).toBe(1);
 	});
 
 	test("maps unknown errors to INTERNAL and increments grpcErrorsTotal", async () => {
@@ -115,8 +117,8 @@ describe("catchGrpcErrors", () => {
 			code: Status.INTERNAL,
 			message: "Internal server error",
 		});
-		expect(counterValue(grpcErrorsTotal, { method: "FindConfirmedRepos" })).toBe(
-			1
-		);
+		expect(
+			await counterValue(grpcErrorsTotal, { method: "FindConfirmedRepos" })
+		).toBe(1);
 	});
 });

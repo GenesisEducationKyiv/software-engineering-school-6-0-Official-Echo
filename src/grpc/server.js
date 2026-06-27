@@ -28,25 +28,25 @@ const proto = loadPackageDefinition(packageDef).notifier.v1;
  * @returns {import("@grpc/grpc-js").Server}
  */
 export function startGrpcServer(subscriptionService, queryService) {
-	const Subscribe = catchGrpcErrors(async (call, callback) => {
+	const Subscribe = catchGrpcErrors("Subscribe", async (call, callback) => {
 		const { email, repo } = call.request;
 		const result = await subscriptionService.subscribe(email, repo);
 		callback(null, { message: result.message });
 	});
 
-	const Confirm = catchGrpcErrors(async (call, callback) => {
+	const Confirm = catchGrpcErrors("Confirm", async (call, callback) => {
 		const { token } = call.request;
 		const result = await subscriptionService.confirm(token);
 		callback(null, { message: result.message });
 	});
 
-	const Unsubscribe = catchGrpcErrors(async (call, callback) => {
+	const Unsubscribe = catchGrpcErrors("Unsubscribe", async (call, callback) => {
 		const { token } = call.request;
 		const result = await subscriptionService.unsubscribe(token);
 		callback(null, { message: result.message });
 	});
 
-	const GetSubscriptions = catchGrpcErrors(async (call, callback) => {
+	const GetSubscriptions = catchGrpcErrors("GetSubscriptions", async (call, callback) => {
 		const { email } = call.request;
 		const result = await subscriptionService.getSubscriptions(email);
 		callback(null, {
@@ -59,12 +59,12 @@ export function startGrpcServer(subscriptionService, queryService) {
 		});
 	});
 
-	const FindConfirmedRepos = catchGrpcErrors(async (_call, callback) => {
+	const FindConfirmedRepos = catchGrpcErrors("FindConfirmedRepos", async (_call, callback) => {
 		const result = await queryService.findConfirmedRepos();
 		callback(null, { repos: result.repos });
 	});
 
-	const FindConfirmedSubscribersByRepo = catchGrpcErrors(
+	const FindConfirmedSubscribersByRepo = catchGrpcErrors("FindConfirmedSubscribersByRepo",
 		async (call, callback) => {
 			const { repo } = call.request;
 			const result = await queryService.findConfirmedSubscribersByRepo(repo);
@@ -79,7 +79,7 @@ export function startGrpcServer(subscriptionService, queryService) {
 		}
 	);
 
-	const UpdateLastSeenTag = catchGrpcErrors(async (call, callback) => {
+	const UpdateLastSeenTag = catchGrpcErrors("UpdateLastSeenTag", async (call, callback) => {
 		const { id, tag } = call.request;
 		await queryService.updateLastSeenTag(id, tag);
 		callback(null, {});

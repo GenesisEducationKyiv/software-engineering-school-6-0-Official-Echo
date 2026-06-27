@@ -1,5 +1,6 @@
 import { Status } from "nice-grpc-common";
 
+import { grpcErrorsTotal, grpcRequestsTotal } from "../services/metrics.js";
 import {
 	AppError,
 	ConflictError,
@@ -21,16 +22,21 @@ const GRPC_STATUS_MAP = new Map([
 ]);
 
 /**
- * Wraps a gRPC handler function with structured error catching.
+ * Wraps a gRPC handler function with structured error catching and RED
+ * metrics (`grpc_requests_total`, `grpc_errors_total`, labeled by method).
  * Unknown errors become `INTERNAL`.
+ * @param {string} method   RPC method name, e.g. "Subscribe" — used as a metric label
  * @param {Function} handlerFn
  * @returns {Function}
  */
-export const catchGrpcErrors = (handlerFn) => {
+export const catchGrpcErrors = (method, handlerFn) => {
 	return async (call, callback) => {
+		grpcRequestsTotal.inc({ method });
 		try {
 			await handlerFn(call, callback);
 		} catch (err) {
+			grpcErrorsTotal.inc({ method });
+
 			if (err instanceof AppError) {
 				const code = GRPC_STATUS_MAP.get(err.constructor) ?? Status.INTERNAL;
 				return callback({ code, message: err.message });

@@ -337,15 +337,15 @@
 			},
 			"targets": [
 				{
-					"expr": "rate(scanner_runs_total{job=\"ghchk\"}[5m])",
+					"expr": "rate(scanner_runs_total{job=\"ghchk-scanner\"}[5m])",
 					"legendFormat": "runs/s"
 				},
 				{
-					"expr": "rate(scanner_errors_total{job=\"ghchk\"}[5m])",
+					"expr": "rate(scanner_errors_total{job=\"ghchk-scanner\"}[5m])",
 					"legendFormat": "errors/s"
 				},
 				{
-					"expr": "rate(notifications_sent_total{job=\"ghchk\"}[5m])",
+					"expr": "rate(notifications_sent_total{job=\"ghchk-scanner\"}[5m])",
 					"legendFormat": "notifications/s"
 				}
 			]
@@ -372,6 +372,72 @@
 				{
 					"expr": "process_resident_memory_bytes{job=\"ghchk\"}",
 					"legendFormat": "RSS"
+				}
+			]
+		},
+		{
+			"id": 11,
+			"type": "timeseries",
+			"title": "Kafka Producer/Consumer Activity",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 28
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short"
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(kafka_producer_messages_total[5m])) by (job, event_type)",
+					"legendFormat": "{{job}} produced/s {{event_type}}"
+				},
+				{
+					"expr": "sum(rate(kafka_producer_errors_total[5m])) by (job, event_type)",
+					"legendFormat": "{{job}} produce errors/s {{event_type}}"
+				},
+				{
+					"expr": "sum(rate(kafka_consumer_messages_total{job=\"ghchk\"}[5m])) by (event_type)",
+					"legendFormat": "consumed/s {{event_type}}"
+				},
+				{
+					"expr": "sum(rate(kafka_consumer_errors_total{job=\"ghchk\"}[5m])) by (event_type)",
+					"legendFormat": "consume errors/s {{event_type}}"
+				}
+			]
+		},
+		{
+			"id": 12,
+			"type": "timeseries",
+			"title": "gRPC Requests by Method",
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 28
+			},
+			"datasource": {
+				"uid": "prometheus"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short"
+				}
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(grpc_requests_total{job=\"ghchk\"}[5m])) by (method)",
+					"legendFormat": "{{method}}"
+				},
+				{
+					"expr": "sum(rate(grpc_errors_total{job=\"ghchk\"}[5m])) by (method)",
+					"legendFormat": "{{method}} errors/s"
 				}
 			]
 		}

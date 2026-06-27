@@ -1,3 +1,4 @@
+import { createKafkaProducerMetrics } from "@ghchk/common/services/metrics.js";
 import http from "http";
 import { Counter, Registry } from "prom-client";
 
@@ -5,22 +6,25 @@ const METRICS_PORT = process.env.METRICS_PORT || 9464;
 const registry = new Registry();
 
 export const scannerRunsTotal = new Counter({
-	name: "ghchk_scanner_runs_total",
-	help: "Number of scanner cron cycles completed",
+	name: "scanner_runs_total",
+	help: "Total number of scanner cron runs",
 	registers: [registry],
 });
 
 export const scannerErrorsTotal = new Counter({
-	name: "ghchk_scanner_errors_total",
-	help: "Number of per-repo errors during scanning",
+	name: "scanner_errors_total",
+	help: "Total number of errors during scanner cron runs",
 	registers: [registry],
 });
 
 export const notificationsSentTotal = new Counter({
-	name: "ghchk_notifications_sent_total",
-	help: "Number of release.detected events published",
+	name: "notifications_sent_total",
+	help: "Total release notification emails sent",
 	registers: [registry],
 });
+
+export const { kafkaProducerMessagesTotal, kafkaProducerErrorsTotal } =
+	createKafkaProducerMetrics(registry);
 
 export function startMetricsServer() {
 	const server = http.createServer(async (req, res) => {

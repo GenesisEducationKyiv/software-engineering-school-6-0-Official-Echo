@@ -1,3 +1,4 @@
+import { createKafkaProducerMetrics } from "@ghchk/common/services/metrics.js";
 import {
 	collectDefaultMetrics,
 	Counter,
@@ -43,31 +44,8 @@ export const confirmedSubscriptionsTotal = new Gauge({
 	registers: [register],
 });
 
-export const scannerRunsTotal = new Counter({
-	name: "scanner_runs_total",
-	help: "Total number of scanner cron runs",
-	registers: [register],
-});
-
-export const scannerErrorsTotal = new Counter({
-	name: "scanner_errors_total",
-	help: "Total number of errors during scanner cron runs",
-	registers: [register],
-});
-
-export const kafkaProducerMessagesTotal = new Counter({
-	name: "kafka_producer_messages_total",
-	help: "Total number of messages successfully published to Kafka",
-	labelNames: ["topic", "event_type"],
-	registers: [register],
-});
-
-export const kafkaProducerErrorsTotal = new Counter({
-	name: "kafka_producer_errors_total",
-	help: "Total number of Kafka producer publish failures",
-	labelNames: ["topic", "event_type"],
-	registers: [register],
-});
+export const { kafkaProducerMessagesTotal, kafkaProducerErrorsTotal } =
+	createKafkaProducerMetrics(register);
 
 export const kafkaConsumerMessagesTotal = new Counter({
 	name: "kafka_consumer_messages_total",
@@ -83,9 +61,17 @@ export const kafkaConsumerErrorsTotal = new Counter({
 	registers: [register],
 });
 
-export const notificationsSentTotal = new Counter({
-	name: "notifications_sent_total",
-	help: "Total release notification emails sent",
+export const grpcRequestsTotal = new Counter({
+	name: "grpc_requests_total",
+	help: "Total number of gRPC requests received",
+	labelNames: ["method"],
+	registers: [register],
+});
+
+export const grpcErrorsTotal = new Counter({
+	name: "grpc_errors_total",
+	help: "Total number of gRPC requests that resulted in an error",
+	labelNames: ["method"],
 	registers: [register],
 });
 

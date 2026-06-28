@@ -1,18 +1,25 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { EventType } from "#src/kafka/topics.js";
+import { EventType, TOPIC_EVENTS } from "#src/kafka/topics.js";
+import {
+	kafkaConsumerErrorsTotal,
+	kafkaConsumerMessagesTotal,
+	register,
+} from "#src/services/metrics.js";
 import { createNotificationService } from "#src/services/notificationService.js";
 
-vi.mock("kafkajs", () => {
-	const consumer = {
+const { mockConsumer } = vi.hoisted(() => ({
+	mockConsumer: {
 		connect: vi.fn().mockResolvedValue(undefined),
 		subscribe: vi.fn().mockResolvedValue(undefined),
 		run: vi.fn().mockResolvedValue(undefined),
 		disconnect: vi.fn().mockResolvedValue(undefined),
-	};
+	},
+}));
 
+vi.mock("kafkajs", () => {
 	class Kafka {
-		consumer = vi.fn(() => consumer);
+		consumer = vi.fn(() => mockConsumer);
 	}
 
 	return {
@@ -35,11 +42,30 @@ function makeService(overrides = {}) {
 		sendReleaseNotification: vi.fn().mockResolvedValue(undefined),
 		...overrides.notifier,
 	};
-	const { handleEvent } = createNotificationService({ notifier });
-	return { handleEvent, notifier };
+	const service = createNotificationService({ notifier });
+	return { service, handleEvent: service.handleEvent, notifier };
 }
 
-beforeEach(() => vi.clearAllMocks());
+function labelsMatch(actual, expected) {
+	return Object.entries(expected).every(
+		([key, value]) => String(actual[key]) === String(value)
+	);
+}
+
+async function counterValue(counter, labels) {
+	const { values } = await counter.get();
+	return values.find((v) => labelsMatch(v.labels, labels))?.value ?? 0;
+}
+
+/** Buffer-like Kafka message value, matching `message.value?.toString()`. */
+function messageValue(obj) {
+	return obj === undefined ? undefined : Buffer.from(JSON.stringify(obj));
+}
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	register.resetMetrics();
+});
 
 describe("handleEvent — release.detected", () => {
 	test("calls sendReleaseNotification with correct arguments", async () => {
@@ -268,5 +294,179 @@ describe("handleEvent — multiple calls", () => {
 		});
 
 		expect(notifier.sendReleaseNotification).toHaveBeenCalledOnce();
+	});
+});
+
+describe("start()", () => {
+	test("connects, subscribes to the shared topic, and starts the consumer", async () => {
+		const { service } = makeService();
+		await service.start();
+
+		expect(mockConsumer.connect).toHaveBeenCalledOnce();
+		expect(mockConsumer.subscribe).toHaveBeenCalledWith({
+			topic: TOPIC_EVENTS,
+			fromBeginning: false,
+		});
+		expect(mockConsumer.run).toHaveBeenCalledOnce();
+	});
+});
+
+describe("stop()", () => {
+	test("disconnects the consumer", async () => {
+		const { service } = makeService();
+		await service.start();
+		await service.stop();
+
+		expect(mockConsumer.disconnect).toHaveBeenCalledOnce();
+	});
+});
+
+describe("eachMessage handler (registered via start())", () => {
+	async function getEachMessage(overrides) {
+		const { service, notifier } = makeService(overrides);
+		await service.start();
+		const { eachMessage } = mockConsumer.run.mock.calls[0][0];
+		return { service, notifier, eachMessage };
+	}
+
+	test("skips an empty message without parsing or calling handleEvent", async () => {
+		const { notifier, eachMessage } = await getEachMessage();
+
+		await eachMessage({
+			topic: TOPIC_EVENTS,
+			partition: 0,
+			message: { value: messageValue(undefined) },
+		});
+
+		expect(notifier.sendReleaseNotification).not.toHaveBeenCalled();
+		expect(
+			await counterValue(kafkaConsumerMessagesTotal, { topic: TOPIC_EVENTS })
+		).toBe(0);
+	});
+
+	test("parses a valid message and dispatches it to handleEvent", async () => {
+		const { notifier, eachMessage } = await getEachMessage();
+
+		await eachMessage({
+			topic: TOPIC_EVENTS,
+			partition: 0,
+			message: {
+				value: messageValue({
+					type: EventType.RELEASE_DETECTED,
+					payload: {
+						email: "a@b.com",
+						repo: "x/y",
+						tag: "v1.0.0",
+						unsubscribeToken: "tok",
+					},
+				}),
+			},
+		});
+
+		expect(notifier.sendReleaseNotification).toHaveBeenCalledOnce();
+		expect(
+			await counterValue(kafkaConsumerMessagesTotal, {
+				topic: TOPIC_EVENTS,
+				event_type: EventType.RELEASE_DETECTED,
+			})
+		).toBe(1);
+	});
+
+	test("counts messages with no `type` field as event_type unknown", async () => {
+		const { eachMessage } = await getEachMessage();
+
+		await eachMessage({
+			topic: TOPIC_EVENTS,
+			partition: 0,
+			message: { value: messageValue({ payload: {} }) },
+		});
+
+		expect(
+			await counterValue(kafkaConsumerMessagesTotal, {
+				topic: TOPIC_EVENTS,
+				event_type: "unknown",
+			})
+		).toBe(1);
+	});
+
+	test("logs and increments error metrics on invalid JSON, without throwing", async () => {
+		const { eachMessage } = await getEachMessage();
+
+		await expect(
+			eachMessage({
+				topic: TOPIC_EVENTS,
+				partition: 0,
+				message: { value: Buffer.from("not-json{") },
+			})
+		).resolves.toBeUndefined();
+
+		expect(
+			await counterValue(kafkaConsumerErrorsTotal, {
+				topic: TOPIC_EVENTS,
+				event_type: "unknown",
+			})
+		).toBe(1);
+
+		expect(
+			await counterValue(kafkaConsumerMessagesTotal, { topic: TOPIC_EVENTS })
+		).toBe(0);
+	});
+
+	test("catches errors thrown by handleEvent, increments error metrics, and resumes", async () => {
+		const { eachMessage } = await getEachMessage({
+			notifier: {
+				sendReleaseNotification: vi
+					.fn()
+					.mockRejectedValue(new Error("SMTP down")),
+			},
+		});
+
+		await expect(
+			eachMessage({
+				topic: TOPIC_EVENTS,
+				partition: 0,
+				message: {
+					value: messageValue({
+						type: EventType.RELEASE_DETECTED,
+						payload: {
+							email: "a@b.com",
+							repo: "x/y",
+							tag: "v1.0.0",
+							unsubscribeToken: "tok",
+						},
+					}),
+				},
+			})
+		).resolves.toBeUndefined();
+
+		expect(
+			await counterValue(kafkaConsumerErrorsTotal, {
+				topic: TOPIC_EVENTS,
+				event_type: EventType.RELEASE_DETECTED,
+			})
+		).toBe(1);
+	});
+
+	test("ignores messages once the consumer has been stopped", async () => {
+		const { service, notifier, eachMessage } = await getEachMessage();
+		await service.stop();
+
+		await eachMessage({
+			topic: TOPIC_EVENTS,
+			partition: 0,
+			message: {
+				value: messageValue({
+					type: EventType.RELEASE_DETECTED,
+					payload: {
+						email: "a@b.com",
+						repo: "x/y",
+						tag: "v1.0.0",
+						unsubscribeToken: "tok",
+					},
+				}),
+			},
+		});
+
+		expect(notifier.sendReleaseNotification).not.toHaveBeenCalled();
 	});
 });

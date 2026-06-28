@@ -142,4 +142,15 @@ describe("httpErrorHandler()", () => {
 			expect.objectContaining({ code: "INTERNAL_ERROR" })
 		);
 	});
+
+	test("an AppError not present in the status map falls back to 500 (5xx logging branch)", () => {
+		const err = new AppError("something odd", "ODD");
+		const res = mockRes();
+		httpErrorHandler(err, {}, res, vi.fn());
+		expect(res.status).toHaveBeenCalledWith(500);
+		expect(res.json).toHaveBeenCalledWith({
+			code: "ODD",
+			error: "something odd",
+		});
+	});
 });

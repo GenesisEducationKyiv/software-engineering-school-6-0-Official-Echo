@@ -59,6 +59,18 @@ describe("repoExists", () => {
 		expect(result).toBe(true);
 		expect(mockGet).not.toHaveBeenCalled();
 	});
+
+	test("re-throws errors that aren't 404 or 429 (e.g. 500 or network failures)", async () => {
+		const serverError = { response: { status: 500 } };
+		mockGet.mockRejectedValue(serverError);
+		await expect(githubService.repoExists("x/y")).rejects.toBe(serverError);
+	});
+
+	test("re-throws errors with no response at all (e.g. DNS/timeout failures)", async () => {
+		const networkError = new Error("getaddrinfo ENOTFOUND");
+		mockGet.mockRejectedValue(networkError);
+		await expect(githubService.repoExists("x/y")).rejects.toBe(networkError);
+	});
 });
 
 describe("getLatestRelease", () => {
@@ -97,5 +109,13 @@ describe("getLatestRelease", () => {
 		const result = await svc.getLatestRelease("anything/repo");
 		expect(result).toBe("v9.9.9");
 		expect(mockGet).not.toHaveBeenCalled();
+	});
+
+	test("re-throws errors that aren't 404 or 429", async () => {
+		const serverError = { response: { status: 500 } };
+		mockGet.mockRejectedValue(serverError);
+		await expect(githubService.getLatestRelease("x/y")).rejects.toBe(
+			serverError
+		);
 	});
 });

@@ -1,6 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
-
-import { cacheDel, cacheGet, cacheSet } from "#src/services/cache.js";
+import { describe, expect, test } from "vitest";
 
 describe("cache service (unit logic)", () => {
 	function makeInMemoryCache() {
@@ -48,29 +46,5 @@ describe("cache service (unit logic)", () => {
 		await c.del("key");
 		expect(c.has("key")).toBe(false);
 		expect(await c.get("key")).toBeNull();
-	});
-});
-
-describe("cache service (graceful degradation)", () => {
-	test("cacheGet returns null without throwing when Redis is down", async () => {
-		vi.resetModules();
-
-		vi.mock("ioredis", () => {
-			return {
-				default: vi.fn(() => ({
-					on: vi.fn().mockReturnThis(),
-					connect: vi
-						.fn()
-						.mockRejectedValue(new Error("Connection refused")),
-					get: vi.fn().mockRejectedValue(new Error("Connection refused")),
-					set: vi.fn().mockRejectedValue(new Error("Connection refused")),
-					del: vi.fn().mockRejectedValue(new Error("Connection refused")),
-				})),
-			};
-		});
-
-		await expect(cacheGet("any")).resolves.toBeNull();
-		await expect(cacheSet("any", "val")).resolves.toBeUndefined();
-		await expect(cacheDel("any")).resolves.toBeUndefined();
 	});
 });

@@ -26,9 +26,12 @@ function getRedis() {
 		redis.on("error", () => {
 			connected = false;
 		});
+		redis.connect().catch(() => {});
 	}
 	return redis;
 }
+
+getRedis();
 
 /**
  * Gets a cached value by key. Returns null if unavailable or missing.

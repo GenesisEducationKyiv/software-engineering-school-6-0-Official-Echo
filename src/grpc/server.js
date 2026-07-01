@@ -46,25 +46,32 @@ export function startGrpcServer(subscriptionService, queryService) {
 		callback(null, { message: result.message });
 	});
 
-	const GetSubscriptions = catchGrpcErrors("GetSubscriptions", async (call, callback) => {
-		const { email } = call.request;
-		const result = await subscriptionService.getSubscriptions(email);
-		callback(null, {
-			subscriptions: result.subscriptions.map((s) => ({
-				email: s.email,
-				repo: s.repo,
-				confirmed: s.confirmed,
-				last_seen_tag: s.last_seen_tag || "",
-			})),
-		});
-	});
+	const GetSubscriptions = catchGrpcErrors(
+		"GetSubscriptions",
+		async (call, callback) => {
+			const { email } = call.request;
+			const result = await subscriptionService.getSubscriptions(email);
+			callback(null, {
+				subscriptions: result.subscriptions.map((s) => ({
+					email: s.email,
+					repo: s.repo,
+					confirmed: s.confirmed,
+					last_seen_tag: s.last_seen_tag || "",
+				})),
+			});
+		}
+	);
 
-	const FindConfirmedRepos = catchGrpcErrors("FindConfirmedRepos", async (_call, callback) => {
-		const result = await queryService.findConfirmedRepos();
-		callback(null, { repos: result.repos });
-	});
+	const FindConfirmedRepos = catchGrpcErrors(
+		"FindConfirmedRepos",
+		async (_call, callback) => {
+			const result = await queryService.findConfirmedRepos();
+			callback(null, { repos: result.repos });
+		}
+	);
 
-	const FindConfirmedSubscribersByRepo = catchGrpcErrors("FindConfirmedSubscribersByRepo",
+	const FindConfirmedSubscribersByRepo = catchGrpcErrors(
+		"FindConfirmedSubscribersByRepo",
 		async (call, callback) => {
 			const { repo } = call.request;
 			const result = await queryService.findConfirmedSubscribersByRepo(repo);
@@ -79,11 +86,14 @@ export function startGrpcServer(subscriptionService, queryService) {
 		}
 	);
 
-	const UpdateLastSeenTag = catchGrpcErrors("UpdateLastSeenTag", async (call, callback) => {
-		const { id, tag } = call.request;
-		await queryService.updateLastSeenTag(id, tag);
-		callback(null, {});
-	});
+	const UpdateLastSeenTag = catchGrpcErrors(
+		"UpdateLastSeenTag",
+		async (call, callback) => {
+			const { id, tag } = call.request;
+			await queryService.updateLastSeenTag(id, tag);
+			callback(null, {});
+		}
+	);
 
 	const server = new Server();
 

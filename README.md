@@ -29,22 +29,23 @@ pnpm test
 
 ## Environment variables
 
-| Variable        | Description                                                       | Default                       |
-| --------------- | ----------------------------------------------------------------- | ----------------------------- |
-| `PORT`          | HTTP port                                                         | `3000`                        |
-| `GRPC_PORT`     | gRPC port                                                         | `50051`                       |
-| `DB_PATH`       | SQLite file path                                                  | `./data/app.db`               |
-| `BASE_URL`      | Public URL (used in email links)                                  | `http://localhost:3000`       |
-| `GITHUB_TOKEN`  | GitHub PAT — raises rate limit to 5000 req/hr                     | —                             |
-| `CRON_SCHEDULE` | Scanner schedule                                                  | `*/15 * * * *`                |
-| `REDIS_URL`     | Redis connection URL                                              | `redis://localhost:6379`      |
-| `API_KEY`       | Protects API endpoints via `X-API-Key` header — disabled if empty | —                             |
-| `SMTP_HOST`     | SMTP host                                                         | —                             |
-| `SMTP_PORT`     | SMTP port                                                         | `587`                         |
-| `SMTP_SECURE`   | Use SSL (true for port 465)                                       | `false`                       |
-| `SMTP_USER`     | SMTP username                                                     | —                             |
-| `SMTP_PASS`     | SMTP password                                                     | —                             |
-| `SMTP_FROM`     | Sender address                                                    | `noreply@github-notifier.dev` |
+| Variable                         | Description                                                       | Default                       |
+| -------------------------------- | ----------------------------------------------------------------- | ----------------------------- |
+| `PORT`                           | HTTP port                                                         | `3000`                        |
+| `GRPC_PORT`                      | gRPC port                                                         | `50051`                       |
+| `DB_PATH`                        | SQLite file path                                                  | `./data/app.db`               |
+| `BASE_URL`                       | Public URL (used in email links)                                  | `http://localhost:3000`       |
+| `GITHUB_TOKEN`                   | GitHub PAT — raises rate limit to 5000 req/hr                     | —                             |
+| `CRON_SCHEDULE`                  | Scanner schedule                                                  | `*/15 * * * *`                |
+| `REDIS_URL`                      | Redis connection URL                                              | `redis://localhost:6379`      |
+| `API_KEY`                        | Protects API endpoints via `X-API-Key` header — disabled if empty | —                             |
+| `SMTP_HOST`                      | SMTP host                                                         | —                             |
+| `SMTP_PORT`                      | SMTP port                                                         | `587`                         |
+| `SMTP_SECURE`                    | Use SSL (true for port 465)                                       | `false`                       |
+| `SMTP_USER`                      | SMTP username                                                     | —                             |
+| `SMTP_PASS`                      | SMTP password                                                     | —                             |
+| `SMTP_FROM`                      | Sender address                                                    | `noreply@github-notifier.dev` |
+| `SUBSCRIPTION_SERVICE_GRPC_ADDR` | Address for scanner DB connection                                 | `ghchk:50051`                 |
 
 ### gRPC
 
